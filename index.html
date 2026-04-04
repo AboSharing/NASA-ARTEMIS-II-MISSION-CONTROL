@@ -9,68 +9,63 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
     
     <style>
-        :root { --bg: #020406; --accent: #0066b2; --owner: #FFD700; --mod: #00ffcc; --danger: #ff4444; --private: #ff00ff; --obs: #888888; --system: #00ff00; }
+        :root { --bg: #020406; --accent: #0066b2; --owner: #FFD700; --mod: #00ffcc; --danger: #ff4444; --private: #ff00ff; }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-        header { min-height: 50px; height: auto; background: #000; display: flex; align-items: center; padding: 5px 20px; border-bottom: 2px solid var(--accent); justify-content: space-between; z-index: 1100; flex-shrink: 0; flex-wrap: wrap; gap: 10px; }
+        header { height: 50px; background: #000; display: flex; align-items: center; padding: 0 20px; border-bottom: 2px solid var(--accent); justify-content: space-between; z-index: 1100; flex-shrink: 0; }
         .layout { display: flex; flex: 1; overflow: hidden; position: relative; }
         .video-grid { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 2px; background: #111; }
         .video-card { position: relative; background: #000; }
         .video-card iframe { position: absolute; width: 100%; height: 100%; border: none; }
         .label { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 2px 8px; font-size: 11px; z-index: 5; border-left: 2px solid var(--accent); color: #fff; font-weight: bold; text-transform: uppercase; }
+        
         .chat-container { width: 350px; background: #0a0c10; border-left: 1px solid #1a1e26; display: flex; flex-direction: column; position: relative; z-index: 1050; }
         #messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 0.85rem; scroll-behavior: smooth; }
+        
         .chat-status-bar { padding: 12px 15px; background: #111; border-bottom: 1px solid #1a1e26; position: relative; }
+        /* Kleiner Hinweis für Befehle */
         .cmd-info-tip { position: absolute; right: 15px; top: 15px; font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+
         #suggestions { position: absolute; bottom: 80px; left: 10px; right: 10px; background: #161b22; border: 1px solid var(--accent); border-radius: 6px; display: none; z-index: 2000; max-height: 200px; overflow-y: auto; }
         .sugg-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #30363d; font-size: 12px; }
+        
         .chat-input-area { padding: 15px; border-top: 1px solid #1a1e26; background: #0d1117; position: relative; min-height: 70px; display: flex; align-items: center; }
-        #lock-overlay { width: 100%; text-align: center; color: var(--danger); font-size: 11px; font-weight: bold; display: none; animation: glow-red 2s infinite ease-in-out; }
-        @keyframes glow-red { 0%, 100% { opacity: 0.6; text-shadow: 0 0 5px rgba(255,0,0,0); } 50% { opacity: 1; text-shadow: 0 0 15px rgba(255,68,68,0.8); } }
+        
+        /* Sperre Schild - Fest verbaut unten */
+        #lock-overlay { 
+            width: 100%; text-align: center; color: var(--danger); font-size: 11px; font-weight: bold; 
+            display: none; animation: glow-red 2s infinite ease-in-out; 
+        }
+        @keyframes glow-red {
+            0%, 100% { opacity: 0.6; text-shadow: 0 0 5px rgba(255,0,0,0); }
+            50% { opacity: 1; text-shadow: 0 0 15px rgba(255,68,68,0.8); }
+        }
+
         input { width: 100%; background: #161b22; border: 1px solid #30363d; color: white; padding: 12px; border-radius: 8px; outline: none; font-size: 16px; }
+        
         #name-overlay { position: absolute; inset: 0; background: rgba(2, 4, 6, 0.98); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
         .name-box { background: #0d1117; padding: 30px; border: 1px solid var(--accent); border-radius: 12px; text-align: center; width: 100%; max-width: 320px; }
         .btn-action { width: 100%; margin-top: 15px; padding: 10px; background: var(--accent); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
         footer { background: #000; font-size: 10px; color: #444; padding: 5px; text-align: center; border-top: 1px solid #111; flex-shrink: 0; }
-        .stat-badge { font-family: monospace; font-size: 0.75rem; margin-right: 10px; white-space: nowrap; cursor: pointer; }
-        .local-msg { color: var(--system); border-left: 2px solid var(--system); padding: 4px 8px; margin-bottom: 10px; font-family: monospace; font-size: 11px; background: rgba(0, 255, 0, 0.05); }
-        #user-list-popover { position: absolute; top: 60px; right: 10px; background: #0d1117; border: 1px solid var(--accent); padding: 10px; display: none; z-index: 3000; width: 200px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .user-list-item { font-size: 12px; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
 
         @media (max-width: 768px) {
             .layout { flex-direction: column; }
             .chat-container { width: 100%; height: 45%; border-left: none; border-top: 1px solid #1a1e26; }
             .video-grid { height: 55%; }
-            header { padding: 10px; justify-content: center; }
         }
     </style>
 </head>
 <body>
 
-<div id="ban-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.99); z-index:99999; flex-direction:column; align-items:center; justify-content:center; color:var(--danger); text-align:center; font-family:monospace; padding:20px; pointer-events: all;">
-    <h1 style="font-size:3rem; margin:0; text-shadow: 0 0 20px red;">ACCESS DENIED</h1>
-    <p style="border:1px solid var(--danger); padding:15px; margin-top:20px; background: rgba(255,0,0,0.1);">DEIN GERÄTE-KEY WURDE VOM SYSTEM PERMANENT GESPERRT.</p>
-    <div style="font-size:10px; color:#555; margin-top:20px;">MISSION CONTROL EXCLUSION PROTOCOL 403</div>
-</div>
-
 <header>
     <div style="font-size: 0.8rem; letter-spacing: 1px;">NASA ARTEMIS II // MISSION CONTROL</div>
-    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
-        <div id="status-display" style="display: flex; gap: 5px;">
-            <span class="stat-badge" style="color: #fff;" onclick="toggleUserList()">TOT: <span id="stat-total">0</span></span>
-            <span class="stat-badge" style="color: var(--mod);">CHAT: <span id="stat-chat">0</span></span>
-            <span class="stat-badge" style="color: var(--obs);">OBS: <span id="stat-obs">0</span></span>
-        </div>
-        <div id="clock" style="font-family: monospace; color: var(--accent); font-size: 0.8rem;"></div>
-    </div>
+    <div style="display: flex; gap: 20px; align-items: center;">
+    <div id="user-count" style="font-size: 0.8rem; color: #00ff00;">LIVE: 0 ONLINE</div>
+    <div id="clock" style="font-family: monospace; color: var(--accent);"></div>
+</div>
 </header>
 
-<div id="user-list-popover">
-    <div style="font-size: 10px; color: var(--accent); margin-bottom: 8px; border-bottom: 1px solid #222;">ONLINE USERS</div>
-    <div id="user-list-content"></div>
-</div>
-
-<div class="layout" id="main-layout-container">
+<div class="layout">
     <div class="video-grid">
         <div class="video-card"><div class="label">Artemis II Live</div><iframe src="https://www.youtube.com/embed/m3kR2KK8TEs?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
         <div class="video-card"><div class="label">Orion Views</div><iframe src="https://www.youtube.com/embed/6RwfNBtepa4?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
@@ -127,181 +122,176 @@
         const genKey = "NASA-" + Math.random().toString(36).substring(2, 10).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
         localStorage.setItem('nasa_key', genKey);
     }
-    let myKey = localStorage.getItem('nasa_key');
+    const myKey = localStorage.getItem('nasa_key');
     let myName = localStorage.getItem('nasa_user') || "";
-    let loginTime = Date.now();
-    let userRole = localStorage.getItem('nasa_role') || "user";
-    let onlineUsersList = [];
+    let loginTime = parseInt(localStorage.getItem('nasa_login_ts') || Date.now());
+    let userRole = "user";
 
     const chatInput = document.getElementById('chat-in');
     const suggBox = document.getElementById('suggestions');
-    const msgBox = document.getElementById('messages');
-
-    function toggleUserList() {
-        const p = document.getElementById('user-list-popover');
-        p.style.display = p.style.display === "block" ? "none" : "block";
-    }
 
     setInterval(() => { 
+        const now = new Date();
         const clockEl = document.getElementById('clock');
-        if(clockEl) clockEl.innerText = new Date().toISOString().replace('T',' ').split('.')[0] + ' UTC'; 
+        if(clockEl) clockEl.innerText = now.toISOString().replace('T',' ').split('.')[0] + ' UTC'; 
     }, 1000);
 
-    const appendLocalMsg = (text) => {
-        const d = document.createElement('div');
-        d.className = "local-msg";
-        d.innerHTML = `<strong>[SYSTEM]</strong><br>${text}`;
-        msgBox.appendChild(d);
-        msgBox.scrollTop = msgBox.scrollHeight;
+    const setOnlineStatus = (status) => {
+        if (myName) db.collection("users").doc(myName).update({online: status}).catch(() => {});
     };
-
-    const updateRoleUI = (role) => {
-        const rd = document.getElementById('role-display');
-        rd.innerText = role.toUpperCase();
-        rd.style.color = (role === "owner" || myName === SUPER_OWNER) ? "var(--owner)" : (role === "mod" ? "var(--mod)" : "#00ff00");
-    };
-
-    const setOnlineStatus = async (status) => {
-        const id = myName || "OBS-" + myKey.substring(5,12);
-        try {
-            await db.collection("users").doc(id).set({
-                key: myKey, 
-                online: status, 
-                lastSeen: Date.now(),
-                role: (myName === SUPER_OWNER) ? "owner" : userRole,
-                isObserver: !myName
-            }, {merge: true});
-        } catch (e) {}
-    };
-    
     window.onbeforeunload = () => { setOnlineStatus(false); };
+    const logout = () => { setOnlineStatus(false); localStorage.removeItem('nasa_user'); location.reload(); };
 
-    const logout = async () => { 
-        await setOnlineStatus(false); 
-        localStorage.removeItem('nasa_user'); 
-        localStorage.removeItem('nasa_role');
-        window.location.replace(window.location.href);
-    };
-
+    // --- CHAT SPERRE LOGIK ---
     db.collection("settings").doc("chatStatus").onSnapshot(doc => {
         const isLocked = doc.exists ? doc.data().locked : false;
         const lockOverlay = document.getElementById('lock-overlay');
         const canWrite = (myName === SUPER_OWNER || userRole === "owner" || userRole === "mod");
-        chatInput.style.display = (isLocked && !canWrite) ? "none" : "block";
-        lockOverlay.style.display = (isLocked && !canWrite) ? "block" : "none";
+
+        if (isLocked && !canWrite) {
+            chatInput.style.display = "none";
+            lockOverlay.style.display = "block";
+        } else {
+            chatInput.style.display = "block";
+            lockOverlay.style.display = "none";
+        }
     });
 
-    db.collection("chat").orderBy("ts", "asc").limitToLast(50).onSnapshot(snap => {
-        const isAtBottom = msgBox.scrollHeight - msgBox.clientHeight <= msgBox.scrollTop + 50;
-        const currentMsgs = document.querySelectorAll('#messages > div:not(.local-msg)');
-        currentMsgs.forEach(m => m.remove());
-        snap.forEach(doc => {
-            const m = doc.data();
-            if (!m.target || m.target === myName || m.u === myName || (userRole !== "user" || myName === SUPER_OWNER)) {
-                const d = document.createElement('div');
-                d.style.marginBottom = "8px";
-                const date = m.ts ? m.ts.toDate() : new Date();
-                let icon = (m.u === SUPER_OWNER || m.role === "owner") ? "👑 " : (m.role === "mod" ? "🛡️ " : "👤 ");
-                let color = (m.u === SUPER_OWNER || m.role === "owner") ? "var(--owner)" : (m.role === "mod" ? "var(--mod)" : "var(--accent)");
-                d.innerHTML = `<span style="font-size: 9px; color: #666;">[${date.toLocaleTimeString()}]</span> ${m.target ? `<span style="color:var(--private)">(MSG) </span>` : ""}${icon}<strong style="color:${color}">${m.u}:</strong> <span>${m.t}</span>`;
-                if ((userRole !== "user" || myName === SUPER_OWNER) && (myName === SUPER_OWNER || m.u !== SUPER_OWNER)) {
-                    const del = document.createElement('span'); del.innerText = " 🗑️"; del.style.cursor="pointer";
+    // --- NACHRICHTEN ---
+    // --- NACHRICHTEN EMPFANGEN (MIT ZEITSTEMPEL & SYMBOLEN) ---
+db.collection("chat").orderBy("ts", "asc").limitToLast(50).onSnapshot(snap => {
+    const msgBox = document.getElementById('messages'); 
+    msgBox.innerHTML = "";
+    snap.forEach(doc => {
+        const m = doc.data();
+        if (!m.target || m.target === myName || m.u === myName || userRole !== "user") {
+            const d = document.createElement('div');
+            d.style.marginBottom = "8px";
+            
+            // Zeitstempel berechnen (Euro-Format)
+            const date = m.ts ? m.ts.toDate() : new Date();
+            const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+            const dateStr = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+
+            let icon = "👤 ";
+            let color = "var(--accent)";
+            if (m.u === SUPER_OWNER || m.role === "owner") { icon = "👑 "; color = "var(--owner)"; }
+            else if (m.role === "mod") { icon = "🛡️ "; color = "var(--mod)"; }
+
+            // Zusammenbau der Nachricht mit kleinem grauen Datum/Uhrzeit
+            d.innerHTML = `
+                <span style="font-size: 9px; color: #666; margin-right: 5px;">[${dateStr} ${timeStr}]</span>
+                ${m.target ? `<span style="color:var(--private)">(MSG) </span>` : ""}
+                ${icon}<strong style="color:${color}">${m.u}:</strong> 
+                <span>${m.t}</span>
+            `;
+
+            if (userRole !== "user") {
+                if (myName === SUPER_OWNER || m.u !== SUPER_OWNER) {
+                    const del = document.createElement('span');
+                    del.innerText = " 🗑️";
+                    del.style.cursor = "pointer"; del.style.marginLeft = "8px";
                     del.onclick = () => db.collection("chat").doc(doc.id).delete();
                     d.appendChild(del);
                 }
-                msgBox.appendChild(d);
+            }
+            msgBox.appendChild(d);
+        }
+    });
+    msgBox.scrollTop = msgBox.scrollHeight;
+});
+
+    function listenToUserDoc() {
+        db.collection("users").doc(myName).onSnapshot(doc => { 
+            if (!doc.exists) logout();
+            else {
+                const data = doc.data();
+                if(data.key !== myKey || (data.lastKick && data.lastKick > loginTime)) logout();
+                userRole = data.role || "user"; 
+                updateUI(); 
             }
         });
-        if (isAtBottom) msgBox.scrollTop = msgBox.scrollHeight;
-    });
+    }
 
-    db.collection("users").onSnapshot(snap => {
-        let chatCount = 0, obsCount = 0, totalOnline = 0;
-        onlineUsersList = [];
-        const userContent = document.getElementById('user-list-content');
-        userContent.innerHTML = "";
-        
-        snap.forEach(doc => {
-            const u = doc.data();
-            if (u.online) {
-                totalOnline++;
-                if (doc.id.startsWith("OBS-")) {
-                    obsCount++;
-                } else {
-                    chatCount++;
-                    const div = document.createElement('div');
-                    div.className = "user-list-item";
-                    let color = (doc.id === SUPER_OWNER || u.role === "owner") ? "var(--owner)" : (u.role === "mod" ? "var(--mod)" : "var(--accent)");
-                    div.innerHTML = `<span style="color:${color}">●</span> ${doc.id}`;
-                    userContent.appendChild(div);
-                }
-            }
-            onlineUsersList.push({ name: doc.id, key: u.key, online: u.online });
-        });
-        document.getElementById('stat-total').innerText = totalOnline;
-        document.getElementById('stat-chat').innerText = chatCount;
-        document.getElementById('stat-obs').innerText = obsCount;
-    });
+    function updateUI() {
+        document.getElementById('display-name-label').innerText = myName || "OFFLINE";
+        const r = document.getElementById('role-display');
+        r.innerText = userRole.toUpperCase(); 
+        r.style.color = (userRole === "owner" || myName === SUPER_OWNER) ? "var(--owner)" : (userRole === "mod" ? "var(--mod)" : "#00ff00");
+    }
 
+    async function init() {
+        const kb = await db.collection("bannedKeys").doc(myKey).get();
+        if (kb.exists) {
+            document.body.innerHTML = "<div style='background:black;color:red;height:100vh;display:flex;align-items:center;justify-content:center;'><h1>HARDWARE BANNED</h1></div>";
+            return;
+        }
+        if (!myName) { document.getElementById('name-overlay').style.display = "flex"; }
+        else { setOnlineStatus(true); listenToUserDoc(); }
+    }
+    init();
+
+// --- USER ZÄHLER ---
+db.collection("users").where("online", "==", true).onSnapshot(snap => {
+    const countEl = document.getElementById('user-count');
+    if(countEl) countEl.innerText = `LIVE: ${snap.size} ONLINE`;
+});
+
+    // --- LOGIN LOGIK ---
     document.getElementById('save-name-btn').onclick = async () => {
         const val = document.getElementById('name-input-field').value.trim();
-        if(!val) return;
-        const doc = await db.collection("users").doc(val).get();
-        if(doc.exists && doc.data().key !== myKey) {
-            document.getElementById('login-main').style.display = "none";
-            document.getElementById('login-auth').style.display = "block";
-            window.tempName = val;
-        } else { await loginFinal(val, myKey); }
+        if(val) {
+            const doc = await db.collection("users").doc(val).get();
+            if(doc.exists && doc.data().key !== myKey) {
+                document.getElementById('login-main').style.display = "none";
+                document.getElementById('login-auth').style.display = "block";
+                window.tempName = val;
+            } else {
+                myName = val;
+                localStorage.setItem('nasa_user', myName);
+                await db.collection("users").doc(myName).set({key: myKey, online: true, role: val === SUPER_OWNER ? "owner" : "user"});
+                location.reload();
+            }
+        }
     };
 
     document.getElementById('verify-key-btn').onclick = async () => {
-        const enteredKey = document.getElementById('key-input-field').value.trim();
+        const keyVal = document.getElementById('key-input-field').value.trim();
         const doc = await db.collection("users").doc(window.tempName).get();
-        if(doc.exists && doc.data().key === enteredKey) {
-            localStorage.setItem('nasa_key', enteredKey);
-            myKey = enteredKey;
-            await loginFinal(window.tempName, enteredKey);
-        } else { alert("FALSCHER KEY!"); }
+        if(doc.exists && doc.data().key === keyVal) {
+            myName = window.tempName;
+            localStorage.setItem('nasa_user', myName);
+            localStorage.setItem('nasa_key', keyVal);
+            location.reload();
+        } else { alert("Falscher Key!"); }
     };
 
-    async function loginFinal(name, key) {
-        await db.collection("users").doc("OBS-" + myKey.substring(5,12)).delete();
-        myName = name;
-        localStorage.setItem('nasa_user', name);
-        let role = name === SUPER_OWNER ? "owner" : "user";
-        localStorage.setItem('nasa_role', role);
-        await db.collection("users").doc(name).set({key: key, online: true, role: role, lastSeen: Date.now()}, {merge: true});
-        location.reload();
-    }
-
+    // --- BEFEHLS-VORSCHLÄGE ---
     chatInput.addEventListener('input', () => {
         const val = chatInput.value.toLowerCase();
         suggBox.innerHTML = "";
         if (val.startsWith("/")) {
             let cmds = [
                 { c: "/login ", d: "Admin Auth", min: "user" },
-                { c: "/mykey", d: "Eigener Key", min: "user" },
-                { c: "/msg ", d: "Privatnachricht", min: "user" },
-                { c: "/logout", d: "Logout", min: "user" },
-                { c: "/clear", d: "Leeren/Wipe", min: "user" },
-                { c: "/seen", d: "Logs", min: "mod" },
-                { c: "/kick ", d: "Kick", min: "mod" },
-                { c: "/kickall", d: "Leerung", min: "owner" },
+                { c: "/mykey", d: "Key anzeigen", min: "user" },
+                { c: "/msg ", d: "Privat", min: "user" },
+                { c: "/logout", d: "Abmelden", min: "user" },
+                { c: "/clear", d: "Chat leeren", min: "mod" },
+                { c: "/kick ", d: "User trennen", min: "mod" },
+                { c: "/kickall", d: "Alle trennen", min: "owner" },
+                { c: "/ban ", d: "Hardware Ban", min: "owner" },
                 { c: "/lock", d: "Sperren", min: "owner" },
                 { c: "/unlock", d: "Entsperren", min: "owner" },
-                { c: "/ban ", d: "Ban", min: "owner" },
-                { c: "/unban ", d: "Unban", min: "super" },
-                { c: "/setrole ", d: "Rolle", min: "super" },
-                { c: "/reset ", d: "Delete", min: "super" },
-                { c: "/resetall", d: "DB Wipe", min: "super" }
+                { c: "/unban ", d: "Voll-Reset", min: "owner" },
+                { c: "/setrole ", d: "Nur Jan", min: "super" },
+                { c: "/reset ", d: "Nur Jan", min: "super" },
+                { c: "/resetall", d: "Nur Jan", min: "super" }
             ].filter(x => {
-                if (!x.c.startsWith(val)) return false;
-                if (myName === SUPER_OWNER) return true; 
-                if (userRole === "owner") return x.min !== "super";
-                if (userRole === "mod") return x.min === "mod" || x.min === "user";
-                return x.min === "user";
+                if (myName === SUPER_OWNER) return x.c.startsWith(val);
+                if (userRole === "owner") return x.c.startsWith(val) && x.min !== "super";
+                if (userRole === "mod") return x.c.startsWith(val) && (x.min === "mod" || x.min === "user");
+                return x.c.startsWith(val) && x.min === "user";
             });
-
             cmds.forEach(x => {
                 const div = document.createElement('div'); div.className = "sugg-item";
                 div.innerHTML = `<b>${x.c}</b> ${x.d}`;
@@ -312,171 +302,69 @@
         } else suggBox.style.display = "none";
     });
 
+    // --- BEFEHLSVERARBEITUNG ---
     chatInput.onkeypress = async (e) => {
         if (e.key === 'Enter' && chatInput.value.trim() !== "") {
-            const val = chatInput.value.trim();
-            const args = val.split(" ");
-            const cmd = args[0].toLowerCase(), target = args[1], extra = args.slice(2).join(" ");
-
+            const val = chatInput.value.trim(), args = val.split(" ");
+            chatInput.value = ""; suggBox.style.display = "none";
             if (val.startsWith("/")) {
-                chatInput.value = ""; suggBox.style.display = "none";
-                const isAdmin = (userRole !== "user" || myName === SUPER_OWNER);
-
-                if (cmd === "/mykey") return appendLocalMsg("DEIN PRIVATER KEY: " + myKey);
-                
-                if (cmd === "/clear") {
-                    if (userRole === "user" && myName !== SUPER_OWNER) {
-                        msgBox.innerHTML = "";
-                        return appendLocalMsg("Lokale Ansicht geleert.");
-                    } else {
-                        const s = await db.collection("chat").get(); 
-                        const b = db.batch(); 
-                        s.forEach(d => b.delete(d.ref)); 
-                        return b.commit();
-                    }
-                }
-                
-                if (cmd === "/msg" && target) {
-                    if (!extra) return;
-                    await db.collection("chat").add({ u: myName, target: target, t: extra, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
-                    return;
-                }
-
+                const cmd = args[0].toLowerCase(), target = args[1];
                 if (cmd === "/login") {
-                    const h = md5(target);
-                    let newRole = "user";
-                    if (h === PW_OWNER) newRole = "owner";
-                    else if (h === PW_MOD) newRole = "mod";
-                    if (newRole !== "user") {
-                        userRole = newRole;
-                        localStorage.setItem('nasa_role', newRole);
-                        await db.collection("users").doc(myName).update({role: newRole});
-                        updateRoleUI(newRole);
-                        appendLocalMsg("Auth erfolgreich: " + newRole.toUpperCase());
-                    }
+                    const h = md5(args[1]);
+                    if (h === PW_OWNER) await db.collection("users").doc(myName).update({role: "owner"}); 
+                    else if (h === PW_MOD) await db.collection("users").doc(myName).update({role: "mod"}); 
                     return;
                 }
-
-                if (isAdmin) {
-                    if (cmd === "/seen") {
-                        let out = "LOGS:<br>";
-                        onlineUsersList.forEach(u => { out += `${u.online?'[ON]':'[OFF]'} ${u.name} : ${u.key}<br>`; });
-                        return appendLocalMsg(out);
-                    }
-                    if (cmd === "/lock") return db.collection("settings").doc("chatStatus").set({locked: true});
-                    if (cmd === "/unlock") return db.collection("settings").doc("chatStatus").set({locked: false});
-                    
-                    if (cmd === "/kickall" && (userRole === "owner" || myName === SUPER_OWNER)) {
-                        const s = await db.collection("users").get();
-                        const b = db.batch();
-                        const now = Date.now();
-                        s.forEach(doc => { if (doc.id !== myName && doc.id !== SUPER_OWNER) b.update(doc.ref, { lastKick: now, online: false }); });
-                        await b.commit();
-                        return appendLocalMsg("KICKALL ausgeführt.");
-                    }
-
-                    if (target && target !== SUPER_OWNER) {
-                        if (cmd === "/kick") return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
-                        
-                        if (cmd === "/ban" && (userRole === "owner" || myName === SUPER_OWNER)) {
-                            const tDoc = await db.collection("users").doc(target).get();
-                            if (tDoc.exists) {
-                                await db.collection("bannedKeys").doc(tDoc.data().key).set({ts: Date.now(), user: target});
-                                await db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
-                            }
-                            return;
+if (cmd === "/logout") { logout(); return; }
+                if (cmd === "/mykey") {
+                    const m = document.createElement('div'); m.innerHTML = `<p style="color:var(--owner); font-size:10px;">KEY: ${myKey}</p>`;
+                    document.getElementById('messages').appendChild(m); return;
+                }
+                if (cmd === "/msg" && target) {
+                    const txt = args.slice(2).join(" "), u = await db.collection("users").doc(target).get();
+                    if (u.exists && u.data().online) return db.collection("chat").add({ u: myName, target: target, t: txt, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
+                    else return alert("User offline.");
+                }
+                if (userRole !== "user" || myName === SUPER_OWNER) {
+                    if (cmd === "/clear") { const s = await db.collection("chat").get(); const b = db.batch(); s.forEach(d => b.delete(d.ref)); return b.commit(); }
+                    if (target) {
+                        const tDoc = await db.collection("users").doc(target).get();
+                        const tRole = tDoc.exists ? tDoc.data().role : "user";
+                        const canTouch = (myName === SUPER_OWNER) || (target !== SUPER_OWNER && ((userRole === "owner" && tRole !== "owner") || (userRole === "mod" && tRole === "user")));
+                        if (cmd === "/kick" && canTouch) return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
+                        if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/ban" && canTouch) {
+                            await db.collection("bans").doc(target).set({ts: Date.now()});
+                            if (tDoc.exists && tDoc.data().key) await db.collection("bannedKeys").doc(tDoc.data().key).set({ts: Date.now(), user: target});
+                            return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         }
-                        if (cmd === "/unban" && myName === SUPER_OWNER) {
-                            const s = await db.collection("bannedKeys").where("user", "==", target).get();
-                            s.forEach(d => d.ref.delete());
-                            return;
+                        if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/unban") {
+                            await db.collection("bans").doc(target).delete();
+                            const kSnap = await db.collection("bannedKeys").where("user", "==", target).get();
+                            kSnap.forEach(d => d.ref.delete()); await db.collection("users").doc(target).delete(); return;
                         }
                         if (myName === SUPER_OWNER) {
-                            if (cmd === "/reset") {
-                                // Double Reset Logic
-                                const count = (target === SUPER_OWNER) ? 2 : 1;
-                                for(let i=0; i<count; i++) {
-                                    await db.collection("users").doc(target).delete();
-                                }
-                                return appendLocalMsg(`User ${target} wurde vollständig resettet.`); 
-                            }
-                            if (cmd === "/setrole") { await db.collection("users").doc(target).update({ role: args[2] }); return; }
-                            if (cmd === "/resetall") {
-                                const s = await db.collection("users").get();
-                                const b = db.batch();
-                                s.forEach(doc => { if(doc.id !== SUPER_OWNER) b.delete(doc.ref); });
-                                await b.commit();
-                                return appendLocalMsg("Alle User (außer Jan) aus DB entfernt.");
-                            }
+                            if (cmd === "/setrole") return db.collection("users").doc(target).update({role: args[2]});
+                            if (cmd === "/reset") return db.collection("users").doc(target).delete();
                         }
                     }
+                    if (userRole === "owner" || myName === SUPER_OWNER) {
+                        if (cmd === "/lock") return db.collection("settings").doc("chatStatus").set({locked: true});
+                        if (cmd === "/unlock") return db.collection("settings").doc("chatStatus").set({locked: false});
+                        if (cmd === "/kickall") {
+                            const s = await db.collection("users").get(); const b = db.batch();
+                            s.forEach(d => { if(d.id !== myName && d.id !== SUPER_OWNER) b.update(d.ref, {lastKick: Date.now(), online: false}); }); return b.commit();
+                        }
+                    }
+                    if (myName === SUPER_OWNER && cmd === "/resetall") {
+                        const s = await db.collection("users").get(); const b = db.batch();
+                        s.forEach(d => { if(d.id !== myName && d.id !== SUPER_OWNER) b.delete(d.ref); }); return b.commit();
+                    }
                 }
-                if (cmd === "/logout") logout();
                 return;
             }
-            await db.collection("chat").add({ u: myName, t: val, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
-            chatInput.value = "";
+            db.collection("chat").add({ u: myName, t: val, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
         }
     };
-
-    async function init() {
-        db.collection("bannedKeys").doc(myKey).onSnapshot(doc => {
-            if (doc.exists) {
-                const mainLayout = document.getElementById('main-layout-container');
-                if(mainLayout) mainLayout.remove();
-                document.getElementById('ban-overlay').style.display = "flex";
-                localStorage.clear();
-                setInterval(() => {
-                    if (!document.getElementById('ban-overlay')) {
-                        window.location.replace("about:blank");
-                    }
-                    document.body.style.overflow = "hidden";
-                }, 500);
-            }
-        });
-
-        if (!myName) {
-            document.getElementById('name-overlay').style.display = "flex";
-        } else {
-            const dayInMs = 86400000;
-            const userRef = db.collection("users").doc(myName);
-            const userDoc = await userRef.get();
-            
-            if (userDoc.exists) {
-                const userData = userDoc.data();
-                if (Date.now() - (userData.lastSeen || 0) > dayInMs) { logout(); return; }
-                userRole = (myName === SUPER_OWNER) ? "owner" : (userData.role || "user");
-                localStorage.setItem('nasa_role', userRole);
-            } else if (myName !== "") {
-                // Falls User in DB gelöscht wurde (Reset), hier logout erzwingen
-                logout(); 
-                return;
-            }
-
-            document.getElementById('display-name-label').innerText = myName;
-            updateRoleUI(userRole);
-            setOnlineStatus(true);
-            setInterval(() => setOnlineStatus(true), 300000);
-
-            userRef.onSnapshot(doc => {
-                if (doc.exists) {
-                    const data = doc.data();
-                    if (data.lastKick && data.lastKick > loginTime) {
-                        logout(); 
-                    }
-                    if (data.role && data.role !== userRole) {
-                        userRole = data.role;
-                        localStorage.setItem('nasa_role', userRole);
-                        updateRoleUI(userRole);
-                    }
-                } else {
-                    // Falls Dokument während der Sitzung gelöscht wird (/reset)
-                    if (myName !== SUPER_OWNER) logout();
-                }
-            });
-        }
-    }
-    init();
 </script>
 </body>
 </html>
