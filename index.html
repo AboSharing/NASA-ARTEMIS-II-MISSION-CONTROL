@@ -335,7 +335,7 @@
                 { c: "/mykey", d: "Key anzeigen", min: "user" },
                 { c: "/msg ", d: "Privat", min: "user" },
                 { c: "/logout", d: "Abmelden", min: "user" },
-                { c: "/seen", d: "Wer ist da?", min: "mod" },
+                { c: "/seen", d: "Wer ist da?", min: "user" },
                 { c: "/clear", d: "Chat leeren", min: "mod" },
                 { c: "/kick ", d: "User trennen", min: "mod" },
                 { c: "/kickall", d: "Alle trennen", min: "owner" },
@@ -388,19 +388,43 @@
                 }
 
                 if (userRole !== "user" || myName === SUPER_OWNER) {
-                    if (cmd === "/seen") {
-                        const snap = await db.collection("presence").get();
-                        const msgBox = document.getElementById('messages');
-                        const div = document.createElement('div');
-                        div.style.color = "var(--mod)"; div.style.fontSize = "10px";
-                        div.innerHTML = "<strong>AKTIVE VERBINDUNGEN:</strong><br>";
-                        snap.forEach(doc => {
-                            const d = doc.data();
-                            div.innerHTML += `Key: ${doc.id.substring(0,10)}... | Name: ${d.name} ${d.inChat ? '(Chat)' : '(Besucher)'}<br>`;
-                        });
-                        msgBox.appendChild(div);
-                        return;
-                    }
+if (cmd === "/seen") {
+    const snap = await db.collection("presence").get();
+    const msgBox = document.getElementById('messages');
+    const div = document.createElement('div');
+    div.style.color = "var(--mod)"; 
+    div.style.fontSize = "10px";
+    
+    // Admin-Check: Ist der Nutzer Mod, Owner oder Jan?
+    const isAdmin = (userRole === "mod" || userRole === "owner" || myName === SUPER_OWNER);
+
+    if (isAdmin) {
+        div.innerHTML = "<strong>ADMIN-ANSICHT: AKTIVE VERBINDUNGEN</strong><br>";
+        snap.forEach(doc => {
+            const d = doc.data();
+            const entry = d.inChat ? `${d.name} (Chat)` : `Besucher`;
+            div.innerHTML += `Key: ${doc.id.substring(0,10)}... | Name: ${entry}<br>`;
+        });
+    } else {
+        // User-Ansicht: Nur Leute, die eingeloggt sind (inChat: true)
+        div.innerHTML = "<strong>AKTIVE NUTZER IM CHAT:</strong><br>";
+        let chatUsers = [];
+        snap.forEach(doc => {
+            const d = doc.data();
+            if (d.inChat) chatUsers.push(d.name);
+        });
+        
+        if (chatUsers.length > 0) {
+            div.innerHTML += chatUsers.join(", ");
+        } else {
+            div.innerHTML += "Keine aktiven Nutzer.";
+        }
+    }
+    
+    msgBox.appendChild(div);
+    msgBox.scrollTop = msgBox.scrollHeight;
+    return;
+}
                     if (cmd === "/clear") { const s = await db.collection("chat").get(); const b = db.batch(); s.forEach(d => b.delete(d.ref)); return b.commit(); }
                     
                     // KICKALL Befehl
