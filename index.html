@@ -422,13 +422,6 @@ if (cmd === "/seen") {
     msgBox.scrollTop = msgBox.scrollHeight;
     return; // Wichtig: Hier abbrechen, damit er nicht in die Admin-Logik rutscht
 }
-// --- ENDE SEEN BEFEHL ---
-
-// Ab hier geht die normale Admin-Logik weiter (Kick, Ban etc.)
-if (userRole !== "user" || myName === SUPER_OWNER) {
-    if (cmd === "/clear") { /* ... dein bisheriger Code ... */ }
-    // ... Rest deiner Admin-Befehle ...
-}
     
     msgBox.appendChild(div);
     msgBox.scrollTop = msgBox.scrollHeight;
