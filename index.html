@@ -22,7 +22,6 @@
         .chat-container { width: 350px; background: #0a0c10; border-left: 1px solid #1a1e26; display: flex; flex-direction: column; position: relative; z-index: 1050; }
         #messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 0.85rem; scroll-behavior: smooth; }
         
-        /* User Count Dropdown */
         .user-stats-container { position: relative; cursor: pointer; user-select: none; }
         #user-dropdown { 
             position: absolute; top: 100%; right: 0; background: #0d1117; border: 1px solid var(--accent); 
@@ -144,7 +143,7 @@
     const chatInput = document.getElementById('chat-in');
     const suggBox = document.getElementById('suggestions');
 
-    // --- LIVE PRESENCE (VISITOR TRACKING) ---
+    // --- LIVE PRESENCE ---
     const updatePresence = () => {
         db.collection("presence").doc(myKey).set({
             ts: Date.now(),
@@ -153,18 +152,19 @@
         });
     };
     updatePresence();
-    setInterval(updatePresence, 30000); // Alle 30 Sek refreshen
+    setInterval(updatePresence, 30000);
 
-    // Cleanup beim Verlassen
     window.addEventListener('beforeunload', () => {
         db.collection("presence").doc(myKey).delete();
         if (myName) db.collection("users").doc(myName).update({online: false});
     });
 
-    // --- GLOBAL RELOAD LISTENER ---
+    // --- GLOBAL RELOAD LISTENER (EXCLUDES EXECUTOR) ---
     db.collection("settings").doc("system").onSnapshot(doc => {
         if(doc.exists && doc.data().lastReload > loginTime) {
-            location.reload();
+            if (doc.data().executor !== myName) {
+                location.reload();
+            }
         }
     });
 
@@ -180,7 +180,6 @@
     
     const logout = () => { setOnlineStatus(false); localStorage.removeItem('nasa_user'); location.reload(); };
 
-    // --- CHAT SPERRE LOGIK ---
     db.collection("settings").doc("chatStatus").onSnapshot(doc => {
         const isLocked = doc.exists ? doc.data().locked : false;
         const lockOverlay = document.getElementById('lock-overlay');
@@ -195,7 +194,6 @@
         }
     });
 
-    // --- NACHRICHTEN EMPFANGEN ---
     db.collection("chat").orderBy("ts", "asc").limitToLast(50).onSnapshot(snap => {
         const msgBox = document.getElementById('messages'); 
         msgBox.innerHTML = "";
@@ -265,20 +263,16 @@
     }
     init();
 
-    // --- VERBESSERTER USER ZÄHLER (LIVE) ---
     db.collection("presence").onSnapshot(snap => {
         let total = snap.size;
         let inChat = 0;
         snap.forEach(d => { if(d.data().inChat) inChat++; });
-        let visitors = total - inChat;
-
         document.getElementById('user-count').innerText = `LIVE: ${total} ONLINE`;
         document.getElementById('stat-total').innerText = `Gesamt: ${total}`;
         document.getElementById('stat-chat').innerText = `Im Chat: ${inChat}`;
-        document.getElementById('stat-visitor').innerText = `Besucher: ${visitors}`;
+        document.getElementById('stat-visitor').innerText = `Besucher: ${total - inChat}`;
     });
 
-    // --- LOGIN LOGIK ---
     document.getElementById('save-name-btn').onclick = async () => {
         const val = document.getElementById('name-input-field').value.trim();
         if(val) {
@@ -307,7 +301,6 @@
         } else { alert("Falscher Key!"); }
     };
 
-    // --- BEFEHLS-VORSCHLÄGE ---
     chatInput.addEventListener('input', () => {
         const val = chatInput.value.toLowerCase();
         suggBox.innerHTML = "";
@@ -345,7 +338,6 @@
         } else suggBox.style.display = "none";
     });
 
-    // --- BEFEHLSVERARBEITUNG ---
     chatInput.onkeypress = async (e) => {
         if (e.key === 'Enter' && chatInput.value.trim() !== "") {
             const val = chatInput.value.trim(), args = val.split(" ");
@@ -370,7 +362,6 @@
                     else return alert("User offline.");
                 }
 
-                // ADMIN & MOD BEFEHLE
                 if (userRole !== "user" || myName === SUPER_OWNER) {
                     if (cmd === "/seen") {
                         const snap = await db.collection("presence").get();
@@ -398,30 +389,13 @@
                             if (tDoc.exists && tDoc.data().key) await db.collection("bannedKeys").doc(tDoc.data().key).set({ts: Date.now(), user: target});
                             return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         }
-                        if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/unban") {
-                            await db.collection("bans").doc(target).delete();
-                            const kSnap = await db.collection("bannedKeys").where("user", "==", target).get();
-                            kSnap.forEach(d => d.ref.delete()); await db.collection("users").doc(target).delete(); return;
-                        }
-                        if (myName === SUPER_OWNER) {
-                            if (cmd === "/setrole") return db.collection("users").doc(target).update({role: args[2]});
-                            if (cmd === "/reset") return db.collection("users").doc(target).delete();
-                        }
                     }
                     if (userRole === "owner" || myName === SUPER_OWNER) {
                         if (cmd === "/lock") return db.collection("settings").doc("chatStatus").set({locked: true});
                         if (cmd === "/unlock") return db.collection("settings").doc("chatStatus").set({locked: false});
-                        if (cmd === "/kickall") {
-                            const s = await db.collection("users").get(); const b = db.batch();
-                            s.forEach(d => { if(d.id !== myName && d.id !== SUPER_OWNER) b.update(d.ref, {lastKick: Date.now(), online: false}); }); return b.commit();
-                        }
                     }
                     if (myName === SUPER_OWNER) {
-                        if (cmd === "/reload") return db.collection("settings").doc("system").set({lastReload: Date.now()});
-                        if (cmd === "/resetall") {
-                            const s = await db.collection("users").get(); const b = db.batch();
-                            s.forEach(d => { if(d.id !== myName && d.id !== SUPER_OWNER) b.delete(d.ref); }); return b.commit();
-                        }
+                        if (cmd === "/reload") return db.collection("settings").doc("system").set({lastReload: Date.now(), executor: myName});
                     }
                 }
                 return;
