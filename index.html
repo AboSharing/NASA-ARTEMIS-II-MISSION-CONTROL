@@ -177,7 +177,6 @@
     
     window.onbeforeunload = () => { setOnlineStatus(false); };
 
-    // OPTIMIERTER LOGOUT GEGEN BROWSER-FREEZE
     const logout = async () => { 
         await setOnlineStatus(false); 
         localStorage.removeItem('nasa_user'); 
@@ -185,11 +184,6 @@
         setTimeout(() => {
             location.reload(); 
         }, 150);
-    };
-
-    const fullReset = () => {
-        localStorage.clear();
-        location.reload();
     };
 
     db.collection("settings").doc("chatStatus").onSnapshot(doc => {
@@ -409,7 +403,6 @@
     };
 
     async function init() {
-        // BAN-CHECK (Priorität 1)
         db.collection("bannedKeys").doc(myKey).onSnapshot(doc => {
             if (doc.exists) {
                 document.getElementById('ban-overlay').style.display = "flex";
@@ -437,7 +430,6 @@
             setOnlineStatus(true);
             setInterval(() => setOnlineStatus(true), 300000);
 
-            // REALTIME KICK- & ROLLEN-CHECK
             userRef.onSnapshot(doc => {
                 if (doc.exists) {
                     const data = doc.data();
