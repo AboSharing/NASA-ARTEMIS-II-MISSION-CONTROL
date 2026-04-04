@@ -162,6 +162,7 @@
     // --- GLOBAL RELOAD LISTENER (EXCLUDES EXECUTOR) ---
     db.collection("settings").doc("system").onSnapshot(doc => {
         if(doc.exists && doc.data().lastReload > loginTime) {
+            // Führt den Reload nur aus, wenn man nicht selbst der Ausführende ist
             if (doc.data().executor !== myName) {
                 location.reload();
             }
@@ -384,10 +385,27 @@
                         const canTouch = (myName === SUPER_OWNER) || (target !== SUPER_OWNER && ((userRole === "owner" && tRole !== "owner") || (userRole === "mod" && tRole === "user")));
                         
                         if (cmd === "/kick" && canTouch) return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
+                        
+                        // BAN BEFEHL (Mit Key-Speicherung für Unban)
                         if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/ban" && canTouch) {
                             await db.collection("bans").doc(target).set({ts: Date.now()});
-                            if (tDoc.exists && tDoc.data().key) await db.collection("bannedKeys").doc(tDoc.data().key).set({ts: Date.now(), user: target});
+                            if (tDoc.exists && tDoc.data().key) {
+                                await db.collection("bannedKeys").doc(tDoc.data().key).set({ts: Date.now(), user: target});
+                            }
                             return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
+                        }
+
+                        // VERBESSERTER UNBAN BEFEHL
+                        if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/unban") {
+                            await db.collection("bans").doc(target).delete();
+                            const kSnap = await db.collection("bannedKeys").where("user", "==", target).get();
+                            if (!kSnap.empty) {
+                                const b = db.batch();
+                                kSnap.forEach(doc => b.delete(doc.ref));
+                                await b.commit();
+                            }
+                            await db.collection("users").doc(target).delete();
+                            return alert(target + " entbannt.");
                         }
                     }
                     if (userRole === "owner" || myName === SUPER_OWNER) {
