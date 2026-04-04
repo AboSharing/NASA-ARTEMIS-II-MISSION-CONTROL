@@ -22,8 +22,16 @@
         .chat-container { width: 350px; background: #0a0c10; border-left: 1px solid #1a1e26; display: flex; flex-direction: column; position: relative; z-index: 1050; }
         #messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 0.85rem; scroll-behavior: smooth; }
         
+        /* User Count Dropdown */
+        .user-stats-container { position: relative; cursor: pointer; user-select: none; }
+        #user-dropdown { 
+            position: absolute; top: 100%; right: 0; background: #0d1117; border: 1px solid var(--accent); 
+            padding: 10px; border-radius: 4px; display: none; min-width: 150px; z-index: 2000; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        #user-dropdown.active { display: block; }
+        .stat-line { font-size: 11px; margin: 4px 0; color: #ccc; white-space: nowrap; }
+
         .chat-status-bar { padding: 12px 15px; background: #111; border-bottom: 1px solid #1a1e26; position: relative; }
-        /* Kleiner Hinweis für Befehle */
         .cmd-info-tip { position: absolute; right: 15px; top: 15px; font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
 
         #suggestions { position: absolute; bottom: 80px; left: 10px; right: 10px; background: #161b22; border: 1px solid var(--accent); border-radius: 6px; display: none; z-index: 2000; max-height: 200px; overflow-y: auto; }
@@ -31,7 +39,6 @@
         
         .chat-input-area { padding: 15px; border-top: 1px solid #1a1e26; background: #0d1117; position: relative; min-height: 70px; display: flex; align-items: center; }
         
-        /* Sperre Schild - Fest verbaut unten */
         #lock-overlay { 
             width: 100%; text-align: center; color: var(--danger); font-size: 11px; font-weight: bold; 
             display: none; animation: glow-red 2s infinite ease-in-out; 
@@ -60,9 +67,16 @@
 <header>
     <div style="font-size: 0.8rem; letter-spacing: 1px;">NASA ARTEMIS II // MISSION CONTROL</div>
     <div style="display: flex; gap: 20px; align-items: center;">
-    <div id="user-count" style="font-size: 0.8rem; color: #00ff00;">LIVE: 0 ONLINE</div>
-    <div id="clock" style="font-family: monospace; color: var(--accent);"></div>
-</div>
+        <div class="user-stats-container" onclick="document.getElementById('user-dropdown').classList.toggle('active')">
+            <div id="user-count" style="font-size: 0.8rem; color: #00ff00;">LIVE: 0 ONLINE</div>
+            <div id="user-dropdown">
+                <div class="stat-line" id="stat-total">Gesamt: 0</div>
+                <div class="stat-line" id="stat-chat" style="color:var(--accent)">Im Chat: 0</div>
+                <div class="stat-line" id="stat-visitor" style="color:#888">Besucher: 0</div>
+            </div>
+        </div>
+        <div id="clock" style="font-family: monospace; color: var(--accent);"></div>
+    </div>
 </header>
 
 <div class="layout">
@@ -130,6 +144,30 @@
     const chatInput = document.getElementById('chat-in');
     const suggBox = document.getElementById('suggestions');
 
+    // --- LIVE PRESENCE (VISITOR TRACKING) ---
+    const updatePresence = () => {
+        db.collection("presence").doc(myKey).set({
+            ts: Date.now(),
+            name: myName || "Besucher",
+            inChat: !!myName
+        });
+    };
+    updatePresence();
+    setInterval(updatePresence, 30000); // Alle 30 Sek refreshen
+
+    // Cleanup beim Verlassen
+    window.addEventListener('beforeunload', () => {
+        db.collection("presence").doc(myKey).delete();
+        if (myName) db.collection("users").doc(myName).update({online: false});
+    });
+
+    // --- GLOBAL RELOAD LISTENER ---
+    db.collection("settings").doc("system").onSnapshot(doc => {
+        if(doc.exists && doc.data().lastReload > loginTime) {
+            location.reload();
+        }
+    });
+
     setInterval(() => { 
         const now = new Date();
         const clockEl = document.getElementById('clock');
@@ -139,7 +177,7 @@
     const setOnlineStatus = (status) => {
         if (myName) db.collection("users").doc(myName).update({online: status}).catch(() => {});
     };
-    window.onbeforeunload = () => { setOnlineStatus(false); };
+    
     const logout = () => { setOnlineStatus(false); localStorage.removeItem('nasa_user'); location.reload(); };
 
     // --- CHAT SPERRE LOGIK ---
@@ -157,49 +195,45 @@
         }
     });
 
-    // --- NACHRICHTEN ---
-    // --- NACHRICHTEN EMPFANGEN (MIT ZEITSTEMPEL & SYMBOLEN) ---
-db.collection("chat").orderBy("ts", "asc").limitToLast(50).onSnapshot(snap => {
-    const msgBox = document.getElementById('messages'); 
-    msgBox.innerHTML = "";
-    snap.forEach(doc => {
-        const m = doc.data();
-        if (!m.target || m.target === myName || m.u === myName || userRole !== "user") {
-            const d = document.createElement('div');
-            d.style.marginBottom = "8px";
-            
-            // Zeitstempel berechnen (Euro-Format)
-            const date = m.ts ? m.ts.toDate() : new Date();
-            const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-            const dateStr = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+    // --- NACHRICHTEN EMPFANGEN ---
+    db.collection("chat").orderBy("ts", "asc").limitToLast(50).onSnapshot(snap => {
+        const msgBox = document.getElementById('messages'); 
+        msgBox.innerHTML = "";
+        snap.forEach(doc => {
+            const m = doc.data();
+            if (!m.target || m.target === myName || m.u === myName || userRole !== "user") {
+                const d = document.createElement('div');
+                d.style.marginBottom = "8px";
+                const date = m.ts ? m.ts.toDate() : new Date();
+                const timeStr = date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                const dateStr = date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
 
-            let icon = "👤 ";
-            let color = "var(--accent)";
-            if (m.u === SUPER_OWNER || m.role === "owner") { icon = "👑 "; color = "var(--owner)"; }
-            else if (m.role === "mod") { icon = "🛡️ "; color = "var(--mod)"; }
+                let icon = "👤 ";
+                let color = "var(--accent)";
+                if (m.u === SUPER_OWNER || m.role === "owner") { icon = "👑 "; color = "var(--owner)"; }
+                else if (m.role === "mod") { icon = "🛡️ "; color = "var(--mod)"; }
 
-            // Zusammenbau der Nachricht mit kleinem grauen Datum/Uhrzeit
-            d.innerHTML = `
-                <span style="font-size: 9px; color: #666; margin-right: 5px;">[${dateStr} ${timeStr}]</span>
-                ${m.target ? `<span style="color:var(--private)">(MSG) </span>` : ""}
-                ${icon}<strong style="color:${color}">${m.u}:</strong> 
-                <span>${m.t}</span>
-            `;
+                d.innerHTML = `
+                    <span style="font-size: 9px; color: #666; margin-right: 5px;">[${dateStr} ${timeStr}]</span>
+                    ${m.target ? `<span style="color:var(--private)">(MSG) </span>` : ""}
+                    ${icon}<strong style="color:${color}">${m.u}:</strong> 
+                    <span>${m.t}</span>
+                `;
 
-            if (userRole !== "user") {
-                if (myName === SUPER_OWNER || m.u !== SUPER_OWNER) {
-                    const del = document.createElement('span');
-                    del.innerText = " 🗑️";
-                    del.style.cursor = "pointer"; del.style.marginLeft = "8px";
-                    del.onclick = () => db.collection("chat").doc(doc.id).delete();
-                    d.appendChild(del);
+                if (userRole !== "user") {
+                    if (myName === SUPER_OWNER || m.u !== SUPER_OWNER) {
+                        const del = document.createElement('span');
+                        del.innerText = " 🗑️";
+                        del.style.cursor = "pointer"; del.style.marginLeft = "8px";
+                        del.onclick = () => db.collection("chat").doc(doc.id).delete();
+                        d.appendChild(del);
+                    }
                 }
+                msgBox.appendChild(d);
             }
-            msgBox.appendChild(d);
-        }
+        });
+        msgBox.scrollTop = msgBox.scrollHeight;
     });
-    msgBox.scrollTop = msgBox.scrollHeight;
-});
 
     function listenToUserDoc() {
         db.collection("users").doc(myName).onSnapshot(doc => { 
@@ -231,11 +265,18 @@ db.collection("chat").orderBy("ts", "asc").limitToLast(50).onSnapshot(snap => {
     }
     init();
 
-// --- USER ZÄHLER ---
-db.collection("users").where("online", "==", true).onSnapshot(snap => {
-    const countEl = document.getElementById('user-count');
-    if(countEl) countEl.innerText = `LIVE: ${snap.size} ONLINE`;
-});
+    // --- VERBESSERTER USER ZÄHLER (LIVE) ---
+    db.collection("presence").onSnapshot(snap => {
+        let total = snap.size;
+        let inChat = 0;
+        snap.forEach(d => { if(d.data().inChat) inChat++; });
+        let visitors = total - inChat;
+
+        document.getElementById('user-count').innerText = `LIVE: ${total} ONLINE`;
+        document.getElementById('stat-total').innerText = `Gesamt: ${total}`;
+        document.getElementById('stat-chat').innerText = `Im Chat: ${inChat}`;
+        document.getElementById('stat-visitor').innerText = `Besucher: ${visitors}`;
+    });
 
     // --- LOGIN LOGIK ---
     document.getElementById('save-name-btn').onclick = async () => {
@@ -276,12 +317,14 @@ db.collection("users").where("online", "==", true).onSnapshot(snap => {
                 { c: "/mykey", d: "Key anzeigen", min: "user" },
                 { c: "/msg ", d: "Privat", min: "user" },
                 { c: "/logout", d: "Abmelden", min: "user" },
+                { c: "/seen", d: "Wer ist da?", min: "mod" },
                 { c: "/clear", d: "Chat leeren", min: "mod" },
                 { c: "/kick ", d: "User trennen", min: "mod" },
                 { c: "/kickall", d: "Alle trennen", min: "owner" },
                 { c: "/ban ", d: "Hardware Ban", min: "owner" },
                 { c: "/lock", d: "Sperren", min: "owner" },
                 { c: "/unlock", d: "Entsperren", min: "owner" },
+                { c: "/reload", d: "Clients neuladen", min: "super" },
                 { c: "/unban ", d: "Voll-Reset", min: "owner" },
                 { c: "/setrole ", d: "Nur Jan", min: "super" },
                 { c: "/reset ", d: "Nur Jan", min: "super" },
@@ -309,15 +352,16 @@ db.collection("users").where("online", "==", true).onSnapshot(snap => {
             chatInput.value = ""; suggBox.style.display = "none";
             if (val.startsWith("/")) {
                 const cmd = args[0].toLowerCase(), target = args[1];
+                
                 if (cmd === "/login") {
                     const h = md5(args[1]);
                     if (h === PW_OWNER) await db.collection("users").doc(myName).update({role: "owner"}); 
                     else if (h === PW_MOD) await db.collection("users").doc(myName).update({role: "mod"}); 
                     return;
                 }
-if (cmd === "/logout") { logout(); return; }
+                if (cmd === "/logout") { logout(); return; }
                 if (cmd === "/mykey") {
-                    const m = document.createElement('div'); m.innerHTML = `<p style="color:var(--owner); font-size:10px;">KEY: ${myKey}</p>`;
+                    const m = document.createElement('div'); m.innerHTML = `<p style="color:var(--owner); font-size:10px;">DEIN KEY: ${myKey}</p>`;
                     document.getElementById('messages').appendChild(m); return;
                 }
                 if (cmd === "/msg" && target) {
@@ -325,12 +369,29 @@ if (cmd === "/logout") { logout(); return; }
                     if (u.exists && u.data().online) return db.collection("chat").add({ u: myName, target: target, t: txt, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
                     else return alert("User offline.");
                 }
+
+                // ADMIN & MOD BEFEHLE
                 if (userRole !== "user" || myName === SUPER_OWNER) {
+                    if (cmd === "/seen") {
+                        const snap = await db.collection("presence").get();
+                        const msgBox = document.getElementById('messages');
+                        const div = document.createElement('div');
+                        div.style.color = "var(--mod)"; div.style.fontSize = "10px";
+                        div.innerHTML = "<strong>AKTIVE VERBINDUNGEN:</strong><br>";
+                        snap.forEach(doc => {
+                            const d = doc.data();
+                            div.innerHTML += `Key: ${doc.id.substring(0,10)}... | Name: ${d.name} ${d.inChat ? '(Chat)' : '(Lurker)'}<br>`;
+                        });
+                        msgBox.appendChild(div);
+                        return;
+                    }
                     if (cmd === "/clear") { const s = await db.collection("chat").get(); const b = db.batch(); s.forEach(d => b.delete(d.ref)); return b.commit(); }
+                    
                     if (target) {
                         const tDoc = await db.collection("users").doc(target).get();
                         const tRole = tDoc.exists ? tDoc.data().role : "user";
                         const canTouch = (myName === SUPER_OWNER) || (target !== SUPER_OWNER && ((userRole === "owner" && tRole !== "owner") || (userRole === "mod" && tRole === "user")));
+                        
                         if (cmd === "/kick" && canTouch) return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/ban" && canTouch) {
                             await db.collection("bans").doc(target).set({ts: Date.now()});
@@ -355,9 +416,12 @@ if (cmd === "/logout") { logout(); return; }
                             s.forEach(d => { if(d.id !== myName && d.id !== SUPER_OWNER) b.update(d.ref, {lastKick: Date.now(), online: false}); }); return b.commit();
                         }
                     }
-                    if (myName === SUPER_OWNER && cmd === "/resetall") {
-                        const s = await db.collection("users").get(); const b = db.batch();
-                        s.forEach(d => { if(d.id !== myName && d.id !== SUPER_OWNER) b.delete(d.ref); }); return b.commit();
+                    if (myName === SUPER_OWNER) {
+                        if (cmd === "/reload") return db.collection("settings").doc("system").set({lastReload: Date.now()});
+                        if (cmd === "/resetall") {
+                            const s = await db.collection("users").get(); const b = db.batch();
+                            s.forEach(d => { if(d.id !== myName && d.id !== SUPER_OWNER) b.delete(d.ref); }); return b.commit();
+                        }
                     }
                 }
                 return;
