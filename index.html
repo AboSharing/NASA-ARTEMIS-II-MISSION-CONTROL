@@ -143,7 +143,6 @@
     const chatInput = document.getElementById('chat-in');
     const suggBox = document.getElementById('suggestions');
 
-    // --- LIVE PRESENCE FUNKTION ---
     const updatePresence = () => {
         db.collection("presence").doc(myKey).set({
             ts: Date.now(),
@@ -157,7 +156,6 @@
         if (myName) db.collection("users").doc(myName).update({online: false});
     });
 
-    // --- GLOBAL RELOAD LISTENER ---
     db.collection("settings").doc("system").onSnapshot(doc => {
         if(doc.exists && doc.data().lastReload > loginTime) {
             if (doc.data().executor !== myName) {
@@ -250,15 +248,27 @@
         r.style.color = (userRole === "owner" || myName === SUPER_OWNER) ? "var(--owner)" : (userRole === "mod" ? "var(--mod)" : "#00ff00");
     }
 
-    // --- INITIALISIERUNG ---
     async function init() {
-        const kb = await db.collection("bannedKeys").doc(myKey).get();
-        if (kb.exists) {
-            document.body.innerHTML = "<div style='background:black;color:red;height:100vh;display:flex;align-items:center;justify-content:center;'><h1>HARDWARE BANNED</h1></div>";
-            return;
-        }
+        // GEREGELTER BAN-CHECK MIT EINZEL-RELOAD SIGNAL
+        db.collection("bannedKeys").doc(myKey).onSnapshot(doc => {
+            if (doc.exists) {
+                const data = doc.data();
+                if (data.reload === true) {
+                    location.reload();
+                    return;
+                }
+                document.body.innerHTML = "<div style='background:black;color:red;height:100vh;display:flex;align-items:center;justify-content:center;'><h1>HARDWARE BANNED</h1></div>";
+            } else {
+                // Falls wir im Ban-Screen feststecken, aber der Key gelöscht wurde -> Refresh
+                if (document.body.innerText.includes("HARDWARE BANNED")) {
+                    location.reload();
+                }
+            }
+        });
 
-        // Presence wird NUR gestartet wenn NICHT gebannt
+        const kb = await db.collection("bannedKeys").doc(myKey).get();
+        if (kb.exists) return; // Stoppe init falls gebannt
+
         updatePresence();
         setInterval(updatePresence, 30000);
 
@@ -397,25 +407,31 @@
                             return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         }
 
-// VERBESSERTER UNBAN BEFEHL MIT AUTO-RELOAD FÜR DEN NUTZER
-if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/unban") {
-    await db.collection("bans").doc(target).delete();
-    const kSnap = await db.collection("bannedKeys").where("user", "==", target).get();
-    if (!kSnap.empty) {
-        const b = db.batch();
-        kSnap.forEach(doc => b.delete(doc.ref));
-        await b.commit();
-    }
-    await db.collection("users").doc(target).delete();
-    
-    // Trigger für den globalen Reload, damit der Entbannte es sofort merkt
-    await db.collection("settings").doc("system").set({
-        lastReload: Date.now(), 
-        executor: myName 
-    });
-    
-    return alert(target + " entbannt und Client-Reload ausgelöst.");
-}
+                        // GEZIELTER UNBAN MIT EINZEL-RELOAD
+                        if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/unban") {
+                            const kSnap = await db.collection("bannedKeys").where("user", "==", target).get();
+                            
+                            if (!kSnap.empty) {
+                                const batch = db.batch();
+                                kSnap.forEach(doc => batch.update(doc.ref, { reload: true }));
+                                await batch.commit();
+                                
+                                // Verzögerung für den Client-Empfang
+                                setTimeout(async () => {
+                                    const finalBatch = db.batch();
+                                    kSnap.forEach(doc => finalBatch.delete(doc.ref));
+                                    await db.collection("bans").doc(target).delete();
+                                    await db.collection("users").doc(target).delete();
+                                    await finalBatch.commit();
+                                }, 2000);
+                                
+                                return alert(target + " wird neu geladen und freigeschaltet.");
+                            } else {
+                                await db.collection("bans").doc(target).delete();
+                                await db.collection("users").doc(target).delete();
+                                return alert(target + " entbannt.");
+                            }
+                        }
                     }
                     if (userRole === "owner" || myName === SUPER_OWNER) {
                         if (cmd === "/lock") return db.collection("settings").doc("chatStatus").set({locked: true});
