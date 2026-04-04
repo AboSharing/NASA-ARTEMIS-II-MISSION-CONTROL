@@ -143,7 +143,7 @@
             key: myKey, 
             online: status, 
             lastSeen: Date.now(),
-            role: myName === SUPER_OWNER ? "owner" : (status ? userRole : "user"),
+            role: myName === SUPER_OWNER ? "owner" : userRole,
             isObserver: !myName
         }, {merge: true}).catch(() => {});
     };
@@ -303,8 +303,14 @@
 
                 if (cmd === "/login") {
                     const h = md5(target);
-                    if (h === PW_OWNER) await db.collection("users").doc(myName).update({role: "owner"}); 
-                    else if (h === PW_MOD) await db.collection("users").doc(myName).update({role: "mod"}); 
+                    if (h === PW_OWNER) {
+                        await db.collection("users").doc(myName).update({role: "owner"});
+                        userRole = "owner"; localStorage.setItem('nasa_role', "owner");
+                    } 
+                    else if (h === PW_MOD) {
+                        await db.collection("users").doc(myName).update({role: "mod"});
+                        userRole = "mod"; localStorage.setItem('nasa_role', "mod");
+                    }
                     return;
                 }
 
@@ -381,15 +387,23 @@
             
             if (userDoc.exists) {
                 const userData = userDoc.data();
+                
+                // 24 Stunden Check für Autologout
                 const lastActivity = userData.lastSeen || 0;
                 if (Date.now() - lastActivity > dayInMs) {
                     logout(); 
                     return;
                 }
+
+                // Rolle beim Laden aus DB ziehen
+                userRole = (myName === SUPER_OWNER) ? "owner" : (userData.role || "user");
+                localStorage.setItem('nasa_role', userRole);
             }
 
             document.getElementById('display-name-label').innerText = myName;
             document.getElementById('role-display').innerText = userRole.toUpperCase();
+            document.getElementById('role-display').style.color = (userRole === "owner") ? "var(--owner)" : (userRole === "mod" ? "var(--mod)" : "#00ff00");
+
             setOnlineStatus(true);
             setInterval(() => setOnlineStatus(true), 300000);
 
@@ -397,6 +411,8 @@
                 if (doc.exists) {
                     const data = doc.data();
                     if (data.lastKick && data.lastKick > loginTime) logout();
+                    
+                    // Rolle live aktualisieren, falls sie geändert wurde
                     userRole = (myName === SUPER_OWNER) ? "owner" : (data.role || "user");
                     localStorage.setItem('nasa_role', userRole);
                     document.getElementById('role-display').innerText = userRole.toUpperCase();
