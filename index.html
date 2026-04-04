@@ -387,9 +387,7 @@
                     else return alert("User offline.");
                 }
 
-                if (userRole !== "user" || myName === SUPER_OWNER) {
-// --- ANFANG SEEN BEFEHL ---
-if (cmd === "/seen") {
+                if (cmd === "/seen") {
     const snap = await db.collection("presence").get();
     const msgBox = document.getElementById('messages');
     const div = document.createElement('div');
@@ -422,6 +420,9 @@ if (cmd === "/seen") {
     msgBox.scrollTop = msgBox.scrollHeight;
     return; // Wichtig: Hier abbrechen, damit er nicht in die Admin-Logik rutscht
 }
+
+                if (userRole !== "user" || myName === SUPER_OWNER) {
+
 
                     if (cmd === "/clear") { const s = await db.collection("chat").get(); const b = db.batch(); s.forEach(d => b.delete(d.ref)); return b.commit(); }
                     
