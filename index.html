@@ -32,8 +32,12 @@
         .name-box { background: #0d1117; padding: 30px; border: 1px solid var(--accent); border-radius: 12px; text-align: center; width: 100%; max-width: 320px; }
         .btn-action { width: 100%; margin-top: 15px; padding: 10px; background: var(--accent); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
         footer { background: #000; font-size: 10px; color: #444; padding: 5px; text-align: center; border-top: 1px solid #111; flex-shrink: 0; }
-        .stat-badge { font-family: monospace; font-size: 0.75rem; margin-right: 10px; white-space: nowrap; }
+        .stat-badge { font-family: monospace; font-size: 0.75rem; margin-right: 10px; white-space: nowrap; cursor: pointer; }
         .local-msg { color: var(--system); border-left: 2px solid var(--system); padding: 4px 8px; margin-bottom: 10px; font-family: monospace; font-size: 11px; background: rgba(0, 255, 0, 0.05); }
+
+        /* User List Popover */
+        #user-list-popover { position: absolute; top: 60px; right: 10px; background: #0d1117; border: 1px solid var(--accent); padding: 10px; display: none; z-index: 3000; width: 200px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .user-list-item { font-size: 12px; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
 
         @media (max-width: 768px) {
             .layout { flex-direction: column; }
@@ -49,13 +53,18 @@
     <div style="font-size: 0.8rem; letter-spacing: 1px;">NASA ARTEMIS II // MISSION CONTROL</div>
     <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
         <div id="status-display" style="display: flex; gap: 5px;">
-            <span class="stat-badge" style="color: #fff;">TOT: <span id="stat-total">0</span></span>
+            <span class="stat-badge" style="color: #fff;" onclick="toggleUserList()">TOT: <span id="stat-total">0</span></span>
             <span class="stat-badge" style="color: var(--mod);">CHAT: <span id="stat-chat">0</span></span>
             <span class="stat-badge" style="color: var(--obs);">OBS: <span id="stat-obs">0</span></span>
         </div>
         <div id="clock" style="font-family: monospace; color: var(--accent); font-size: 0.8rem;"></div>
     </div>
 </header>
+
+<div id="user-list-popover">
+    <div style="font-size: 10px; color: var(--accent); margin-bottom: 8px; border-bottom: 1px solid #222;">ONLINE USERS</div>
+    <div id="user-list-content"></div>
+</div>
 
 <div class="layout">
     <div class="video-grid">
@@ -124,6 +133,11 @@
     const suggBox = document.getElementById('suggestions');
     const msgBox = document.getElementById('messages');
 
+    function toggleUserList() {
+        const p = document.getElementById('user-list-popover');
+        p.style.display = p.style.display === "block" ? "none" : "block";
+    }
+
     setInterval(() => { 
         const clockEl = document.getElementById('clock');
         if(clockEl) clockEl.innerText = new Date().toISOString().replace('T',' ').split('.')[0] + ' UTC'; 
@@ -167,7 +181,6 @@
         location.reload();
     };
 
-    // Chat-Status Sperre
     db.collection("settings").doc("chatStatus").onSnapshot(doc => {
         const isLocked = doc.exists ? doc.data().locked : false;
         const lockOverlay = document.getElementById('lock-overlay');
@@ -176,8 +189,8 @@
         lockOverlay.style.display = (isLocked && !canWrite) ? "block" : "none";
     });
 
-    // Chat Nachrichten Listener
     db.collection("chat").orderBy("ts", "asc").limitToLast(50).onSnapshot(snap => {
+        const isAtBottom = msgBox.scrollHeight - msgBox.clientHeight <= msgBox.scrollTop + 50;
         const currentMsgs = document.querySelectorAll('#messages > div:not(.local-msg)');
         currentMsgs.forEach(m => m.remove());
         snap.forEach(doc => {
@@ -197,18 +210,29 @@
                 msgBox.appendChild(d);
             }
         });
-        msgBox.scrollTop = msgBox.scrollHeight;
+        if (isAtBottom) msgBox.scrollTop = msgBox.scrollHeight;
     });
 
-    // Online Stats
     db.collection("users").onSnapshot(snap => {
         let chatCount = 0, obsCount = 0, totalOnline = 0;
         onlineUsersList = [];
+        const userContent = document.getElementById('user-list-content');
+        userContent.innerHTML = "";
+        
         snap.forEach(doc => {
             const u = doc.data();
             if (u.online) {
                 totalOnline++;
-                if (doc.id.startsWith("OBS-")) obsCount++; else chatCount++;
+                if (doc.id.startsWith("OBS-")) {
+                    obsCount++;
+                } else {
+                    chatCount++;
+                    const div = document.createElement('div');
+                    div.className = "user-list-item";
+                    let color = (doc.id === SUPER_OWNER || u.role === "owner") ? "var(--owner)" : (u.role === "mod" ? "var(--mod)" : "var(--accent)");
+                    div.innerHTML = `<span style="color:${color}">●</span> ${doc.id}`;
+                    userContent.appendChild(div);
+                }
             }
             onlineUsersList.push({ name: doc.id, key: u.key, online: u.online });
         });
@@ -248,28 +272,27 @@
         location.reload();
     }
 
-    // Suggestions Logik
     chatInput.addEventListener('input', () => {
         const val = chatInput.value.toLowerCase();
         suggBox.innerHTML = "";
         if (val.startsWith("/")) {
             let cmds = [
-                { c: "/login ", d: "Admin Auth (Passwort)", min: "user" },
-                { c: "/mykey", d: "Eigener Key (Lokal)", min: "user" },
-                { c: "/msg ", d: "Privatnachricht (Name Text)", min: "user" },
-                { c: "/logout", d: "Sitzung beenden", min: "user" },
-                { c: "/clearlocal", d: "Eigene Ansicht leeren", min: "user" },
-                { c: "/seen", d: "User-Logs einsehen", min: "mod" },
-                { c: "/clear", d: "Globaler Chat-Wipe", min: "mod" },
-                { c: "/kick ", d: "User kicken", min: "mod" },
-                { c: "/kickall", d: "Server-Leerung", min: "owner" },
-                { c: "/lock", d: "Chat sperren", min: "owner" },
-                { c: "/unlock", d: "Chat entsperren", min: "owner" },
-                { c: "/ban ", d: "Hardware Ban", min: "owner" },
-                { c: "/unban ", d: "Ban aufheben (Jan)", min: "super" },
-                { c: "/setrole ", d: "Rolle vergeben (Jan)", min: "super" },
-                { c: "/reset ", d: "User löschen (Jan)", min: "super" },
-                { c: "/resetall", d: "Full DB Wipe (Jan)", min: "super" }
+                { c: "/login ", d: "Admin Auth", min: "user" },
+                { c: "/mykey", d: "Eigener Key", min: "user" },
+                { c: "/msg ", d: "Privatnachricht", min: "user" },
+                { c: "/logout", d: "Logout", min: "user" },
+                { c: "/clearlocal", d: "Leeren", min: "user" },
+                { c: "/seen", d: "Logs", min: "mod" },
+                { c: "/clear", d: "Wipe", min: "mod" },
+                { c: "/kick ", d: "Kick", min: "mod" },
+                { c: "/kickall", d: "Leerung", min: "owner" },
+                { c: "/lock", d: "Sperren", min: "owner" },
+                { c: "/unlock", d: "Entsperren", min: "owner" },
+                { c: "/ban ", d: "Ban", min: "owner" },
+                { c: "/unban ", d: "Unban", min: "super" },
+                { c: "/setrole ", d: "Rolle", min: "super" },
+                { c: "/reset ", d: "Delete", min: "super" },
+                { c: "/resetall", d: "DB Wipe", min: "super" }
             ].filter(x => {
                 if (!x.c.startsWith(val)) return false;
                 if (myName === SUPER_OWNER) return true; 
@@ -313,7 +336,6 @@
                     let newRole = "user";
                     if (h === PW_OWNER) newRole = "owner";
                     else if (h === PW_MOD) newRole = "mod";
-                    
                     if (newRole !== "user") {
                         userRole = newRole;
                         localStorage.setItem('nasa_role', newRole);
@@ -386,8 +408,6 @@
             if (userDoc.exists) {
                 const userData = userDoc.data();
                 if (Date.now() - (userData.lastSeen || 0) > dayInMs) { logout(); return; }
-
-                // Rollen-Sync beim Laden
                 userRole = (myName === SUPER_OWNER) ? "owner" : (userData.role || "user");
                 localStorage.setItem('nasa_role', userRole);
             }
@@ -397,12 +417,10 @@
             setOnlineStatus(true);
             setInterval(() => setOnlineStatus(true), 300000);
 
-            // Echtzeit-Überwachung deiner eigenen Daten (Rolle, Kick)
             userRef.onSnapshot(doc => {
                 if (doc.exists) {
                     const data = doc.data();
                     if (data.lastKick && data.lastKick > loginTime) logout();
-                    
                     if (data.role && data.role !== userRole) {
                         userRole = data.role;
                         localStorage.setItem('nasa_role', userRole);
