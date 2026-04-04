@@ -427,7 +427,7 @@
                             return db.collection("users").doc(target).update({ needsReset: true });
                         }
 
-                        if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/ban" && canTouch) {
+                        if ((userRole === "mod" || myName === SUPER_OWNER) && cmd === "/ban" && canTouch) {
                             await db.collection("bans").doc(target).set({ts: Date.now()});
                             if (tDoc.exists && tDoc.data().key) {
                                 await db.collection("bannedKeys").doc(tDoc.data().key).set({ts: Date.now(), user: target});
