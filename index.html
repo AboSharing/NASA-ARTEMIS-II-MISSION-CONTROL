@@ -113,7 +113,7 @@
         </div>
     </div>
 </div>
-<footer>DIES IST EIN FAN-PROJEKT. KEINE OFFIZIELLE NASA-WEBSEITE.</footer>
+<footer>DIES IST EIN FAN-PROJEKT. KEINE OFFIZIELLE NASA-WEBSEITE. | Kontakt: contact@abosharing.anonaddy.com</footer>
 
 <script>
     const firebaseConfig = { 
@@ -269,7 +269,17 @@
                     location.reload();
                     return;
                 }
-                document.body.innerHTML = "<div style='background:black;color:red;height:100vh;display:flex;align-items:center;justify-content:center;'><h1>HARDWARE BANNED</h1></div>";
+                document.body.innerHTML = `
+<div style='background:black;color:red;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;'>
+    <h1>HARDWARE BANNED</h1>
+    <p style="margin-top:20px;color:white;">
+        Sende einen Entbannungsantrag an:
+    </p>
+    <a href="mailto:contact@abosharing.anonaddy.com" style="color:white;text-decoration:underline;margin-top:5px;">
+        contact@abosharing.anonaddy.com
+    </a>
+</div>
+`;
             } else {
                 if (document.body.innerText.includes("HARDWARE BANNED")) {
                     location.reload();
