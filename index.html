@@ -422,11 +422,7 @@ if (cmd === "/seen") {
     msgBox.scrollTop = msgBox.scrollHeight;
     return; // Wichtig: Hier abbrechen, damit er nicht in die Admin-Logik rutscht
 }
-    
-    msgBox.appendChild(div);
-    msgBox.scrollTop = msgBox.scrollHeight;
-    return;
-}
+
                     if (cmd === "/clear") { const s = await db.collection("chat").get(); const b = db.batch(); s.forEach(d => b.delete(d.ref)); return b.commit(); }
                     
                     // KICKALL Befehl
