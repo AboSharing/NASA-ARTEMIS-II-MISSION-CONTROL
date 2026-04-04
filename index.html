@@ -181,7 +181,6 @@
         await setOnlineStatus(false); 
         localStorage.removeItem('nasa_user'); 
         localStorage.removeItem('nasa_role');
-        // Sofortiges Neuladen erzwingen
         window.location.replace(window.location.href);
     };
 
@@ -285,9 +284,8 @@
                 { c: "/mykey", d: "Eigener Key", min: "user" },
                 { c: "/msg ", d: "Privatnachricht", min: "user" },
                 { c: "/logout", d: "Logout", min: "user" },
-                { c: "/clearlocal", d: "Leeren", min: "user" },
+                { c: "/clear", d: "Leeren/Wipe", min: "user" },
                 { c: "/seen", d: "Logs", min: "mod" },
-                { c: "/clear", d: "Wipe", min: "mod" },
                 { c: "/kick ", d: "Kick", min: "mod" },
                 { c: "/kickall", d: "Leerung", min: "owner" },
                 { c: "/lock", d: "Sperren", min: "owner" },
@@ -326,7 +324,18 @@
                 const isAdmin = (userRole !== "user" || myName === SUPER_OWNER);
 
                 if (cmd === "/mykey") return appendLocalMsg("DEIN PRIVATER KEY: " + myKey);
-                if (cmd === "/clearlocal") { msgBox.innerHTML = ""; return; }
+                
+                if (cmd === "/clear") {
+                    if (!isAdmin) {
+                        msgBox.innerHTML = "";
+                        return appendLocalMsg("Lokale Ansicht geleert.");
+                    } else {
+                        const s = await db.collection("chat").get(); 
+                        const b = db.batch(); 
+                        s.forEach(d => b.delete(d.ref)); 
+                        return b.commit();
+                    }
+                }
                 
                 if (cmd === "/msg" && target) {
                     const txt = args.slice(2).join(" ");
@@ -356,10 +365,6 @@
                         onlineUsersList.forEach(u => { out += `${u.online?'[ON]':'[OFF]'} ${u.name} : ${u.key}<br>`; });
                         return appendLocalMsg(out);
                     }
-                    if (cmd === "/clear") { 
-                        const s = await db.collection("chat").get(); const b = db.batch(); 
-                        s.forEach(d => b.delete(d.ref)); return b.commit(); 
-                    }
                     if (cmd === "/lock") return db.collection("settings").doc("chatStatus").set({locked: true});
                     if (cmd === "/unlock") return db.collection("settings").doc("chatStatus").set({locked: false});
                     
@@ -373,7 +378,6 @@
                     }
 
                     if (target && target !== SUPER_OWNER) {
-                        // KICK MECHANIK: Nutzt lastKick wie beim Bann, setzt online auf false, aber speichert KEINEN Key in bannedKeys
                         if (cmd === "/kick") return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         
                         if (cmd === "/ban" && (userRole === "owner" || myName === SUPER_OWNER)) {
@@ -390,8 +394,18 @@
                             return;
                         }
                         if (myName === SUPER_OWNER) {
-                            if (cmd === "/reset") { await db.collection("users").doc(target).delete(); return; }
+                            if (cmd === "/reset") { 
+                                await db.collection("users").doc(target).delete(); 
+                                return appendLocalMsg(`User ${target} aus DB gelöscht.`); 
+                            }
                             if (cmd === "/setrole") { await db.collection("users").doc(target).update({ role: extra }); return; }
+                            if (cmd === "/resetall") {
+                                const s = await db.collection("users").get();
+                                const b = db.batch();
+                                s.forEach(doc => { if(doc.id !== SUPER_OWNER) b.delete(doc.ref); });
+                                await b.commit();
+                                return appendLocalMsg("Alle User (außer Jan) gelöscht.");
+                            }
                         }
                     }
                 }
@@ -404,17 +418,12 @@
     };
 
     async function init() {
-        // BAN-SYSTEM: Overlay-Guard & Persistent Lock
         db.collection("bannedKeys").doc(myKey).onSnapshot(doc => {
             if (doc.exists) {
-                // DOM Manipulation verhindern: Sobald gebannt, wird das Main-Layout entfernt
                 const mainLayout = document.getElementById('main-layout-container');
                 if(mainLayout) mainLayout.remove();
-                
                 document.getElementById('ban-overlay').style.display = "flex";
-                localStorage.clear(); // Alle Sessions beenden
-                
-                // DevTools Guard: Falls jemand versucht das Overlay zu löschen, wird es sofort neu erstellt oder die Seite gecrasht
+                localStorage.clear();
                 setInterval(() => {
                     if (!document.getElementById('ban-overlay')) {
                         window.location.replace("about:blank");
@@ -446,7 +455,6 @@
             userRef.onSnapshot(doc => {
                 if (doc.exists) {
                     const data = doc.data();
-                    // KICK & BAN TRIGGER: Wenn lastKick neuer als Login, wird logout() ausgeführt
                     if (data.lastKick && data.lastKick > loginTime) {
                         logout(); 
                     }
