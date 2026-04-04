@@ -143,7 +143,7 @@
     const chatInput = document.getElementById('chat-in');
     const suggBox = document.getElementById('suggestions');
 
-    // --- LIVE PRESENCE ---
+    // --- LIVE PRESENCE FUNKTION ---
     const updatePresence = () => {
         db.collection("presence").doc(myKey).set({
             ts: Date.now(),
@@ -151,18 +151,15 @@
             inChat: !!myName
         });
     };
-    updatePresence();
-    setInterval(updatePresence, 30000);
 
     window.addEventListener('beforeunload', () => {
         db.collection("presence").doc(myKey).delete();
         if (myName) db.collection("users").doc(myName).update({online: false});
     });
 
-    // --- GLOBAL RELOAD LISTENER (EXCLUDES EXECUTOR) ---
+    // --- GLOBAL RELOAD LISTENER ---
     db.collection("settings").doc("system").onSnapshot(doc => {
         if(doc.exists && doc.data().lastReload > loginTime) {
-            // Führt den Reload nur aus, wenn man nicht selbst der Ausführende ist
             if (doc.data().executor !== myName) {
                 location.reload();
             }
@@ -253,12 +250,18 @@
         r.style.color = (userRole === "owner" || myName === SUPER_OWNER) ? "var(--owner)" : (userRole === "mod" ? "var(--mod)" : "#00ff00");
     }
 
+    // --- INITIALISIERUNG ---
     async function init() {
         const kb = await db.collection("bannedKeys").doc(myKey).get();
         if (kb.exists) {
             document.body.innerHTML = "<div style='background:black;color:red;height:100vh;display:flex;align-items:center;justify-content:center;'><h1>HARDWARE BANNED</h1></div>";
             return;
         }
+
+        // Presence wird NUR gestartet wenn NICHT gebannt
+        updatePresence();
+        setInterval(updatePresence, 30000);
+
         if (!myName) { document.getElementById('name-overlay').style.display = "flex"; }
         else { setOnlineStatus(true); listenToUserDoc(); }
     }
@@ -386,7 +389,6 @@
                         
                         if (cmd === "/kick" && canTouch) return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         
-                        // BAN BEFEHL (Mit Key-Speicherung für Unban)
                         if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/ban" && canTouch) {
                             await db.collection("bans").doc(target).set({ts: Date.now()});
                             if (tDoc.exists && tDoc.data().key) {
@@ -395,7 +397,6 @@
                             return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         }
 
-                        // VERBESSERTER UNBAN BEFEHL
                         if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/unban") {
                             await db.collection("bans").doc(target).delete();
                             const kSnap = await db.collection("bannedKeys").where("user", "==", target).get();
