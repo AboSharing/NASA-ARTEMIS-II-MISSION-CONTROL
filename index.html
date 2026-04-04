@@ -396,7 +396,7 @@
                         div.innerHTML = "<strong>AKTIVE VERBINDUNGEN:</strong><br>";
                         snap.forEach(doc => {
                             const d = doc.data();
-                            div.innerHTML += `Key: ${doc.id.substring(0,10)}... | Name: ${d.name} ${d.inChat ? '(Chat)' : '(Lurker)'}<br>`;
+                            div.innerHTML += `Key: ${doc.id.substring(0,10)}... | Name: ${d.name} ${d.inChat ? '(Chat)'}<br>`;
                         });
                         msgBox.appendChild(div);
                         return;
