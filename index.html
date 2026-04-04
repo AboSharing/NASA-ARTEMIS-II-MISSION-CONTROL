@@ -34,7 +34,6 @@
         footer { background: #000; font-size: 10px; color: #444; padding: 5px; text-align: center; border-top: 1px solid #111; flex-shrink: 0; }
         .stat-badge { font-family: monospace; font-size: 0.75rem; margin-right: 10px; white-space: nowrap; cursor: pointer; }
         .local-msg { color: var(--system); border-left: 2px solid var(--system); padding: 4px 8px; margin-bottom: 10px; font-family: monospace; font-size: 11px; background: rgba(0, 255, 0, 0.05); }
-
         #user-list-popover { position: absolute; top: 60px; right: 10px; background: #0d1117; border: 1px solid var(--accent); padding: 10px; display: none; z-index: 3000; width: 200px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .user-list-item { font-size: 12px; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
 
@@ -198,14 +197,14 @@
         currentMsgs.forEach(m => m.remove());
         snap.forEach(doc => {
             const m = doc.data();
-            if (!m.target || m.target === myName || m.u === myName || userRole !== "user" || myName === SUPER_OWNER) {
+            if (!m.target || m.target === myName || m.u === myName || (userRole !== "user" || myName === SUPER_OWNER)) {
                 const d = document.createElement('div');
                 d.style.marginBottom = "8px";
                 const date = m.ts ? m.ts.toDate() : new Date();
                 let icon = (m.u === SUPER_OWNER || m.role === "owner") ? "👑 " : (m.role === "mod" ? "🛡️ " : "👤 ");
                 let color = (m.u === SUPER_OWNER || m.role === "owner") ? "var(--owner)" : (m.role === "mod" ? "var(--mod)" : "var(--accent)");
                 d.innerHTML = `<span style="font-size: 9px; color: #666;">[${date.toLocaleTimeString()}]</span> ${m.target ? `<span style="color:var(--private)">(MSG) </span>` : ""}${icon}<strong style="color:${color}">${m.u}:</strong> <span>${m.t}</span>`;
-                if (userRole !== "user" && (myName === SUPER_OWNER || m.u !== SUPER_OWNER)) {
+                if ((userRole !== "user" || myName === SUPER_OWNER) && (myName === SUPER_OWNER || m.u !== SUPER_OWNER)) {
                     const del = document.createElement('span'); del.innerText = " 🗑️"; del.style.cursor="pointer";
                     del.onclick = () => db.collection("chat").doc(doc.id).delete();
                     d.appendChild(del);
@@ -317,7 +316,7 @@
         if (e.key === 'Enter' && chatInput.value.trim() !== "") {
             const val = chatInput.value.trim();
             const args = val.split(" ");
-            const cmd = args[0].toLowerCase(), target = args[1], extra = args[2];
+            const cmd = args[0].toLowerCase(), target = args[1], extra = args.slice(2).join(" ");
 
             if (val.startsWith("/")) {
                 chatInput.value = ""; suggBox.style.display = "none";
@@ -326,7 +325,7 @@
                 if (cmd === "/mykey") return appendLocalMsg("DEIN PRIVATER KEY: " + myKey);
                 
                 if (cmd === "/clear") {
-                    if (!isAdmin) {
+                    if (userRole === "user" && myName !== SUPER_OWNER) {
                         msgBox.innerHTML = "";
                         return appendLocalMsg("Lokale Ansicht geleert.");
                     } else {
@@ -338,9 +337,8 @@
                 }
                 
                 if (cmd === "/msg" && target) {
-                    const txt = args.slice(2).join(" ");
-                    if (!txt) return;
-                    await db.collection("chat").add({ u: myName, target: target, t: txt, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
+                    if (!extra) return;
+                    await db.collection("chat").add({ u: myName, target: target, t: extra, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
                     return;
                 }
 
@@ -394,17 +392,21 @@
                             return;
                         }
                         if (myName === SUPER_OWNER) {
-                            if (cmd === "/reset") { 
-                                await db.collection("users").doc(target).delete(); 
-                                return appendLocalMsg(`User ${target} aus DB gelöscht.`); 
+                            if (cmd === "/reset") {
+                                // Double Reset Logic
+                                const count = (target === SUPER_OWNER) ? 2 : 1;
+                                for(let i=0; i<count; i++) {
+                                    await db.collection("users").doc(target).delete();
+                                }
+                                return appendLocalMsg(`User ${target} wurde vollständig resettet.`); 
                             }
-                            if (cmd === "/setrole") { await db.collection("users").doc(target).update({ role: extra }); return; }
+                            if (cmd === "/setrole") { await db.collection("users").doc(target).update({ role: args[2] }); return; }
                             if (cmd === "/resetall") {
                                 const s = await db.collection("users").get();
                                 const b = db.batch();
                                 s.forEach(doc => { if(doc.id !== SUPER_OWNER) b.delete(doc.ref); });
                                 await b.commit();
-                                return appendLocalMsg("Alle User (außer Jan) gelöscht.");
+                                return appendLocalMsg("Alle User (außer Jan) aus DB entfernt.");
                             }
                         }
                     }
@@ -445,6 +447,10 @@
                 if (Date.now() - (userData.lastSeen || 0) > dayInMs) { logout(); return; }
                 userRole = (myName === SUPER_OWNER) ? "owner" : (userData.role || "user");
                 localStorage.setItem('nasa_role', userRole);
+            } else if (myName !== "") {
+                // Falls User in DB gelöscht wurde (Reset), hier logout erzwingen
+                logout(); 
+                return;
             }
 
             document.getElementById('display-name-label').innerText = myName;
@@ -463,6 +469,9 @@
                         localStorage.setItem('nasa_role', userRole);
                         updateRoleUI(userRole);
                     }
+                } else {
+                    // Falls Dokument während der Sitzung gelöscht wird (/reset)
+                    if (myName !== SUPER_OWNER) logout();
                 }
             });
         }
