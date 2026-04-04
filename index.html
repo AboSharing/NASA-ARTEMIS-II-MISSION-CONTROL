@@ -48,7 +48,7 @@
 </head>
 <body>
 
-<div id="ban-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.98); z-index:9999; flex-direction:column; align-items:center; justify-content:center; color:var(--danger); text-align:center; font-family:monospace; padding:20px;">
+<div id="ban-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.99); z-index:99999; flex-direction:column; align-items:center; justify-content:center; color:var(--danger); text-align:center; font-family:monospace; padding:20px; pointer-events: all;">
     <h1 style="font-size:3rem; margin:0; text-shadow: 0 0 20px red;">ACCESS DENIED</h1>
     <p style="border:1px solid var(--danger); padding:15px; margin-top:20px; background: rgba(255,0,0,0.1);">DEIN GERÄTE-KEY WURDE VOM SYSTEM PERMANENT GESPERRT.</p>
     <div style="font-size:10px; color:#555; margin-top:20px;">MISSION CONTROL EXCLUSION PROTOCOL 403</div>
@@ -71,7 +71,7 @@
     <div id="user-list-content"></div>
 </div>
 
-<div class="layout">
+<div class="layout" id="main-layout-container">
     <div class="video-grid">
         <div class="video-card"><div class="label">Artemis II Live</div><iframe src="https://www.youtube.com/embed/m3kR2KK8TEs?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
         <div class="video-card"><div class="label">Orion Views</div><iframe src="https://www.youtube.com/embed/6RwfNBtepa4?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
@@ -181,9 +181,8 @@
         await setOnlineStatus(false); 
         localStorage.removeItem('nasa_user'); 
         localStorage.removeItem('nasa_role');
-        setTimeout(() => {
-            location.reload(); 
-        }, 150);
+        // Sofortiges Neuladen erzwingen
+        window.location.replace(window.location.href);
     };
 
     db.collection("settings").doc("chatStatus").onSnapshot(doc => {
@@ -374,7 +373,9 @@
                     }
 
                     if (target && target !== SUPER_OWNER) {
+                        // KICK MECHANIK: Nutzt lastKick wie beim Bann, setzt online auf false, aber speichert KEINEN Key in bannedKeys
                         if (cmd === "/kick") return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
+                        
                         if (cmd === "/ban" && (userRole === "owner" || myName === SUPER_OWNER)) {
                             const tDoc = await db.collection("users").doc(target).get();
                             if (tDoc.exists) {
@@ -403,11 +404,23 @@
     };
 
     async function init() {
+        // BAN-SYSTEM: Overlay-Guard & Persistent Lock
         db.collection("bannedKeys").doc(myKey).onSnapshot(doc => {
             if (doc.exists) {
+                // DOM Manipulation verhindern: Sobald gebannt, wird das Main-Layout entfernt
+                const mainLayout = document.getElementById('main-layout-container');
+                if(mainLayout) mainLayout.remove();
+                
                 document.getElementById('ban-overlay').style.display = "flex";
-                localStorage.removeItem('nasa_user');
-                localStorage.removeItem('nasa_role');
+                localStorage.clear(); // Alle Sessions beenden
+                
+                // DevTools Guard: Falls jemand versucht das Overlay zu löschen, wird es sofort neu erstellt oder die Seite gecrasht
+                setInterval(() => {
+                    if (!document.getElementById('ban-overlay')) {
+                        window.location.replace("about:blank");
+                    }
+                    document.body.style.overflow = "hidden";
+                }, 500);
             }
         });
 
@@ -433,6 +446,7 @@
             userRef.onSnapshot(doc => {
                 if (doc.exists) {
                     const data = doc.data();
+                    // KICK & BAN TRIGGER: Wenn lastKick neuer als Login, wird logout() ausgeführt
                     if (data.lastKick && data.lastKick > loginTime) {
                         logout(); 
                     }
