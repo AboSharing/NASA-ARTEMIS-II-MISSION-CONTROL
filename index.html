@@ -397,17 +397,25 @@
                             return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         }
 
-                        if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/unban") {
-                            await db.collection("bans").doc(target).delete();
-                            const kSnap = await db.collection("bannedKeys").where("user", "==", target).get();
-                            if (!kSnap.empty) {
-                                const b = db.batch();
-                                kSnap.forEach(doc => b.delete(doc.ref));
-                                await b.commit();
-                            }
-                            await db.collection("users").doc(target).delete();
-                            return alert(target + " entbannt.");
-                        }
+// VERBESSERTER UNBAN BEFEHL MIT AUTO-RELOAD FÜR DEN NUTZER
+if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/unban") {
+    await db.collection("bans").doc(target).delete();
+    const kSnap = await db.collection("bannedKeys").where("user", "==", target).get();
+    if (!kSnap.empty) {
+        const b = db.batch();
+        kSnap.forEach(doc => b.delete(doc.ref));
+        await b.commit();
+    }
+    await db.collection("users").doc(target).delete();
+    
+    // Trigger für den globalen Reload, damit der Entbannte es sofort merkt
+    await db.collection("settings").doc("system").set({
+        lastReload: Date.now(), 
+        executor: myName 
+    });
+    
+    return alert(target + " entbannt und Client-Reload ausgelöst.");
+}
                     }
                     if (userRole === "owner" || myName === SUPER_OWNER) {
                         if (cmd === "/lock") return db.collection("settings").doc("chatStatus").set({locked: true});
