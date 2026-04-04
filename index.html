@@ -174,7 +174,14 @@
         if (myName) db.collection("users").doc(myName).update({online: status}).catch(() => {});
     };
     
-    const logout = () => { setOnlineStatus(false); localStorage.removeItem('nasa_user'); location.reload(); };
+    const logout = (hardReset = false) => { 
+        setOnlineStatus(false); 
+        if(hardReset) {
+            localStorage.removeItem('nasa_key');
+        }
+        localStorage.removeItem('nasa_user'); 
+        location.reload(); 
+    };
 
     db.collection("settings").doc("chatStatus").onSnapshot(doc => {
         const isLocked = doc.exists ? doc.data().locked : false;
@@ -231,13 +238,19 @@
 
     function listenToUserDoc() {
         db.collection("users").doc(myName).onSnapshot(doc => { 
-            if (!doc.exists) logout();
-            else {
-                const data = doc.data();
-                if(data.key !== myKey || (data.lastKick && data.lastKick > loginTime)) logout();
-                userRole = data.role || "user"; 
-                updateUI(); 
+            if (!doc.exists) return; // Nicht sofort ausloggen, falls gelöscht (wegen Reset Logic)
+            const data = doc.data();
+            
+            // RESET LOGIC: Falls remote angewiesen
+            if (data.needsReset) {
+                db.collection("users").doc(myName).delete();
+                logout(true);
+                return;
             }
+
+            if(data.key !== myKey || (data.lastKick && data.lastKick > loginTime)) logout();
+            userRole = data.role || "user"; 
+            updateUI(); 
         });
     }
 
@@ -249,7 +262,6 @@
     }
 
     async function init() {
-        // GEREGELTER BAN-CHECK MIT EINZEL-RELOAD SIGNAL
         db.collection("bannedKeys").doc(myKey).onSnapshot(doc => {
             if (doc.exists) {
                 const data = doc.data();
@@ -259,7 +271,6 @@
                 }
                 document.body.innerHTML = "<div style='background:black;color:red;height:100vh;display:flex;align-items:center;justify-content:center;'><h1>HARDWARE BANNED</h1></div>";
             } else {
-                // Falls wir im Ban-Screen feststecken, aber der Key gelöscht wurde -> Refresh
                 if (document.body.innerText.includes("HARDWARE BANNED")) {
                     location.reload();
                 }
@@ -267,7 +278,7 @@
         });
 
         const kb = await db.collection("bannedKeys").doc(myKey).get();
-        if (kb.exists) return; // Stoppe init falls gebannt
+        if (kb.exists) return;
 
         updatePresence();
         setInterval(updatePresence, 30000);
@@ -334,8 +345,8 @@
                 { c: "/reload", d: "Clients neuladen", min: "super" },
                 { c: "/unban ", d: "Voll-Reset", min: "owner" },
                 { c: "/setrole ", d: "Nur Jan", min: "super" },
-                { c: "/reset ", d: "Nur Jan", min: "super" },
-                { c: "/resetall", d: "Nur Jan", min: "super" }
+                { c: "/reset ", d: "Nutzer löschen + Key", min: "super" },
+                { c: "/resetall", d: "Alles außer Jan löschen", min: "super" }
             ].filter(x => {
                 if (myName === SUPER_OWNER) return x.c.startsWith(val);
                 if (userRole === "owner") return x.c.startsWith(val) && x.min !== "super";
@@ -392,6 +403,18 @@
                     }
                     if (cmd === "/clear") { const s = await db.collection("chat").get(); const b = db.batch(); s.forEach(d => b.delete(d.ref)); return b.commit(); }
                     
+                    // KICKALL Befehl
+                    if (cmd === "/kickall" && (userRole === "owner" || myName === SUPER_OWNER)) {
+                        const uSnap = await db.collection("users").get();
+                        const batch = db.batch();
+                        uSnap.forEach(uDoc => {
+                            if (uDoc.id !== SUPER_OWNER && uDoc.id !== myName) {
+                                batch.update(uDoc.ref, { lastKick: Date.now(), online: false });
+                            }
+                        });
+                        return batch.commit();
+                    }
+
                     if (target) {
                         const tDoc = await db.collection("users").doc(target).get();
                         const tRole = tDoc.exists ? tDoc.data().role : "user";
@@ -399,6 +422,11 @@
                         
                         if (cmd === "/kick" && canTouch) return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         
+                        // RESET Befehl (Nur Jan)
+                        if (cmd === "/reset" && myName === SUPER_OWNER && target !== SUPER_OWNER) {
+                            return db.collection("users").doc(target).update({ needsReset: true });
+                        }
+
                         if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/ban" && canTouch) {
                             await db.collection("bans").doc(target).set({ts: Date.now()});
                             if (tDoc.exists && tDoc.data().key) {
@@ -407,16 +435,12 @@
                             return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         }
 
-                        // GEZIELTER UNBAN MIT EINZEL-RELOAD
                         if ((userRole === "owner" || myName === SUPER_OWNER) && cmd === "/unban") {
                             const kSnap = await db.collection("bannedKeys").where("user", "==", target).get();
-                            
                             if (!kSnap.empty) {
                                 const batch = db.batch();
                                 kSnap.forEach(doc => batch.update(doc.ref, { reload: true }));
                                 await batch.commit();
-                                
-                                // Verzögerung für den Client-Empfang
                                 setTimeout(async () => {
                                     const finalBatch = db.batch();
                                     kSnap.forEach(doc => finalBatch.delete(doc.ref));
@@ -424,8 +448,7 @@
                                     await db.collection("users").doc(target).delete();
                                     await finalBatch.commit();
                                 }, 2000);
-                                
-                                return alert(target + " wird neu geladen und freigeschaltet.");
+                                return alert(target + " wird freigeschaltet.");
                             } else {
                                 await db.collection("bans").doc(target).delete();
                                 await db.collection("users").doc(target).delete();
@@ -433,12 +456,28 @@
                             }
                         }
                     }
+
+                    // RESETALL Befehl (Nur Jan)
+                    if (cmd === "/resetall" && myName === SUPER_OWNER) {
+                        const uSnap = await db.collection("users").get();
+                        const batch = db.batch();
+                        uSnap.forEach(uDoc => {
+                            if (uDoc.id !== SUPER_OWNER) {
+                                batch.update(uDoc.ref, { needsReset: true });
+                            }
+                        });
+                        return batch.commit();
+                    }
+
                     if (userRole === "owner" || myName === SUPER_OWNER) {
                         if (cmd === "/lock") return db.collection("settings").doc("chatStatus").set({locked: true});
                         if (cmd === "/unlock") return db.collection("settings").doc("chatStatus").set({locked: false});
                     }
                     if (myName === SUPER_OWNER) {
                         if (cmd === "/reload") return db.collection("settings").doc("system").set({lastReload: Date.now(), executor: myName});
+                        if (cmd === "/setrole" && target && args[2]) {
+                            return db.collection("users").doc(target).update({role: args[2]});
+                        }
                     }
                 }
                 return;
