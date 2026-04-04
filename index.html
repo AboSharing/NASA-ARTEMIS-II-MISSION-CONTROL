@@ -35,7 +35,6 @@
         .stat-badge { font-family: monospace; font-size: 0.75rem; margin-right: 10px; white-space: nowrap; cursor: pointer; }
         .local-msg { color: var(--system); border-left: 2px solid var(--system); padding: 4px 8px; margin-bottom: 10px; font-family: monospace; font-size: 11px; background: rgba(0, 255, 0, 0.05); }
 
-        /* User List Popover */
         #user-list-popover { position: absolute; top: 60px; right: 10px; background: #0d1117; border: 1px solid var(--accent); padding: 10px; display: none; z-index: 3000; width: 200px; border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .user-list-item { font-size: 12px; margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
 
@@ -48,6 +47,12 @@
     </style>
 </head>
 <body>
+
+<div id="ban-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.98); z-index:9999; flex-direction:column; align-items:center; justify-content:center; color:var(--danger); text-align:center; font-family:monospace; padding:20px;">
+    <h1 style="font-size:3rem; margin:0; text-shadow: 0 0 20px red;">ACCESS DENIED</h1>
+    <p style="border:1px solid var(--danger); padding:15px; margin-top:20px; background: rgba(255,0,0,0.1);">DEIN GERÄTE-KEY WURDE VOM SYSTEM PERMANENT GESPERRT.</p>
+    <div style="font-size:10px; color:#555; margin-top:20px;">MISSION CONTROL EXCLUSION PROTOCOL 403</div>
+</div>
 
 <header>
     <div style="font-size: 0.8rem; letter-spacing: 1px;">NASA ARTEMIS II // MISSION CONTROL</div>
@@ -157,23 +162,29 @@
         rd.style.color = (role === "owner" || myName === SUPER_OWNER) ? "var(--owner)" : (role === "mod" ? "var(--mod)" : "#00ff00");
     };
 
-    const setOnlineStatus = (status) => {
+    const setOnlineStatus = async (status) => {
         const id = myName || "OBS-" + myKey.substring(5,12);
-        db.collection("users").doc(id).set({
-            key: myKey, 
-            online: status, 
-            lastSeen: Date.now(),
-            role: (myName === SUPER_OWNER) ? "owner" : userRole,
-            isObserver: !myName
-        }, {merge: true}).catch(() => {});
+        try {
+            await db.collection("users").doc(id).set({
+                key: myKey, 
+                online: status, 
+                lastSeen: Date.now(),
+                role: (myName === SUPER_OWNER) ? "owner" : userRole,
+                isObserver: !myName
+            }, {merge: true});
+        } catch (e) {}
     };
     
     window.onbeforeunload = () => { setOnlineStatus(false); };
-    const logout = () => { 
-        setOnlineStatus(false); 
+
+    // OPTIMIERTER LOGOUT GEGEN BROWSER-FREEZE
+    const logout = async () => { 
+        await setOnlineStatus(false); 
         localStorage.removeItem('nasa_user'); 
         localStorage.removeItem('nasa_role');
-        location.reload(); 
+        setTimeout(() => {
+            location.reload(); 
+        }, 150);
     };
 
     const fullReset = () => {
@@ -398,6 +409,15 @@
     };
 
     async function init() {
+        // BAN-CHECK (Priorität 1)
+        db.collection("bannedKeys").doc(myKey).onSnapshot(doc => {
+            if (doc.exists) {
+                document.getElementById('ban-overlay').style.display = "flex";
+                localStorage.removeItem('nasa_user');
+                localStorage.removeItem('nasa_role');
+            }
+        });
+
         if (!myName) {
             document.getElementById('name-overlay').style.display = "flex";
         } else {
@@ -417,20 +437,19 @@
             setOnlineStatus(true);
             setInterval(() => setOnlineStatus(true), 300000);
 
+            // REALTIME KICK- & ROLLEN-CHECK
             userRef.onSnapshot(doc => {
                 if (doc.exists) {
                     const data = doc.data();
-                    if (data.lastKick && data.lastKick > loginTime) logout();
+                    if (data.lastKick && data.lastKick > loginTime) {
+                        logout(); 
+                    }
                     if (data.role && data.role !== userRole) {
                         userRole = data.role;
                         localStorage.setItem('nasa_role', userRole);
                         updateRoleUI(userRole);
                     }
                 }
-            });
-
-            db.collection("bannedKeys").doc(myKey).onSnapshot(doc => {
-                if (doc.exists) { alert("GEBANNT!"); logout(); }
             });
         }
     }
