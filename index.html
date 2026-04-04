@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>NASA MISSION CONTROL</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
+    
+    <style>
+        :root { --bg: #020406; --accent: #0066b2; --owner: #FFD700; --mod: #00ffcc; --danger: #ff4444; --private: #ff00ff; --obs: #888888; --system: #00ff00; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: white; font-family: 'Segoe UI', sans-serif; margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+        header { min-height: 50px; height: auto; background: #000; display: flex; align-items: center; padding: 5px 20px; border-bottom: 2px solid var(--accent); justify-content: space-between; z-index: 1100; flex-shrink: 0; flex-wrap: wrap; gap: 10px; }
+        .layout { display: flex; flex: 1; overflow: hidden; position: relative; }
+        .video-grid { flex: 1; display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 2px; background: #111; }
+        .video-card { position: relative; background: #000; }
+        .video-card iframe { position: absolute; width: 100%; height: 100%; border: none; }
+        .label { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 2px 8px; font-size: 11px; z-index: 5; border-left: 2px solid var(--accent); color: #fff; font-weight: bold; text-transform: uppercase; }
+        .chat-container { width: 350px; background: #0a0c10; border-left: 1px solid #1a1e26; display: flex; flex-direction: column; position: relative; z-index: 1050; }
+        #messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 0.85rem; scroll-behavior: smooth; }
+        .chat-status-bar { padding: 12px 15px; background: #111; border-bottom: 1px solid #1a1e26; position: relative; }
+        .cmd-info-tip { position: absolute; right: 15px; top: 15px; font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+        #suggestions { position: absolute; bottom: 80px; left: 10px; right: 10px; background: #161b22; border: 1px solid var(--accent); border-radius: 6px; display: none; z-index: 2000; max-height: 200px; overflow-y: auto; }
+        .sugg-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #30363d; font-size: 12px; }
+        .chat-input-area { padding: 15px; border-top: 1px solid #1a1e26; background: #0d1117; position: relative; min-height: 70px; display: flex; align-items: center; }
+        #lock-overlay { width: 100%; text-align: center; color: var(--danger); font-size: 11px; font-weight: bold; display: none; animation: glow-red 2s infinite ease-in-out; }
+        @keyframes glow-red { 0%, 100% { opacity: 0.6; text-shadow: 0 0 5px rgba(255,0,0,0); } 50% { opacity: 1; text-shadow: 0 0 15px rgba(255,68,68,0.8); } }
+        input { width: 100%; background: #161b22; border: 1px solid #30363d; color: white; padding: 12px; border-radius: 8px; outline: none; font-size: 16px; }
+        #name-overlay { position: absolute; inset: 0; background: rgba(2, 4, 6, 0.98); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .name-box { background: #0d1117; padding: 30px; border: 1px solid var(--accent); border-radius: 12px; text-align: center; width: 100%; max-width: 320px; }
+        .btn-action { width: 100%; margin-top: 15px; padding: 10px; background: var(--accent); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        footer { background: #000; font-size: 10px; color: #444; padding: 5px; text-align: center; border-top: 1px solid #111; flex-shrink: 0; }
+        .stat-badge { font-family: monospace; font-size: 0.75rem; margin-right: 10px; white-space: nowrap; }
+        .local-msg { color: var(--system); border-left: 2px solid var(--system); padding: 4px 8px; margin-bottom: 10px; font-family: monospace; font-size: 11px; background: rgba(0, 255, 0, 0.05); }
+
+        @media (max-width: 768px) {
+            .layout { flex-direction: column; }
+            .chat-container { width: 100%; height: 45%; border-left: none; border-top: 1px solid #1a1e26; }
+            .video-grid { height: 55%; }
+            header { padding: 10px; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div style="font-size: 0.8rem; letter-spacing: 1px;">NASA ARTEMIS II // MISSION CONTROL</div>
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;">
+        <div id="status-display" style="display: flex; gap: 5px;">
+            <span class="stat-badge" style="color: #fff;">TOT: <span id="stat-total">0</span></span>
+            <span class="stat-badge" style="color: var(--mod);">CHAT: <span id="stat-chat">0</span></span>
+            <span class="stat-badge" style="color: var(--obs);">OBS: <span id="stat-obs">0</span></span>
+        </div>
+        <div id="clock" style="font-family: monospace; color: var(--accent); font-size: 0.8rem;"></div>
+    </div>
+</header>
+
+<div class="layout">
+    <div class="video-grid">
+        <div class="video-card"><div class="label">Artemis II Live</div><iframe src="https://www.youtube.com/embed/m3kR2KK8TEs?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
+        <div class="video-card"><div class="label">Orion Views</div><iframe src="https://www.youtube.com/embed/6RwfNBtepa4?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
+        <div class="video-card"><div class="label">ISS HD Earth</div><iframe src="https://www.youtube.com/embed/zPH5KtjJFaQ?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
+        <div class="video-card"><div class="label">ISS Interior</div><iframe src="https://www.youtube.com/embed/sWasdbDVNvc?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
+    </div>
+    <div class="chat-container">
+        <div id="name-overlay">
+            <div class="name-box" id="login-main">
+                <h3>CHAT LOGIN</h3>
+                <input type="text" id="name-input-field" placeholder="Username...">
+                <button id="save-name-btn" class="btn-action">START</button>
+            </div>
+            <div class="name-box" id="login-auth" style="display:none;">
+                <h3>AUTH-REQUIRED</h3>
+                <p style="font-size:11px; color:#888;">Name geschützt. Gib deinen Geräte-Key ein:</p>
+                <input type="text" id="key-input-field" placeholder="Dein Key...">
+                <button id="verify-key-btn" class="btn-action">VERIFIZIEREN</button>
+                <button class="btn-action" style="background:#333; font-size:10px;" onclick="location.reload()">ABBRECHEN</button>
+            </div>
+        </div>
+        <div class="chat-status-bar">
+            <span id="role-display" style="font-size:10px;">GUEST</span><br>
+            <span id="display-name-label" style="font-weight:bold; color:var(--accent);">OFFLINE</span>
+            <div class="cmd-info-tip">Nutze / für Befehle</div>
+        </div>
+        <div id="messages"></div>
+        <div id="suggestions"></div>
+        <div class="chat-input-area" id="input-zone">
+            <input type="text" id="chat-in" placeholder="Nachricht..." autocomplete="off">
+            <div id="lock-overlay">⚠️ MISSION CONTROL: CHAT GESPERRT</div>
+        </div>
+    </div>
+</div>
+<footer>DIES IST EIN FAN-PROJEKT. KEINE OFFIZIELLE NASA-WEBSEITE.</footer>
+
+<script>
+    const firebaseConfig = { 
+        apiKey: "AIzaSyBhIoRjXHXIO7zSBHclKeHDe97QCtNWHbA", 
+        authDomain: "nasa-live-mission-control-chat.firebaseapp.com", 
+        projectId: "nasa-live-mission-control-chat", 
+        storageBucket: "nasa-live-mission-control-chat.firebasestorage.app", 
+        messagingSenderId: "931959651412", 
+        appId: "1:931959651412:web:7cb207597b2f0e490701c1" 
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const PW_OWNER = "15aedddb1774cc24f2e5096e4ebc25be"; 
+    const PW_MOD = "5b085b11f4918e370b78adbca67bdfb7";
+    const SUPER_OWNER = "Jan"; 
+
+    if (!localStorage.getItem('nasa_key')) {
+        const genKey = "NASA-" + Math.random().toString(36).substring(2, 10).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
+        localStorage.setItem('nasa_key', genKey);
+    }
+    let myKey = localStorage.getItem('nasa_key');
+    let myName = localStorage.getItem('nasa_user') || "";
+    let loginTime = Date.now();
+    let userRole = localStorage.getItem('nasa_role') || "user";
+    let onlineUsersList = [];
+
+    const chatInput = document.getElementById('chat-in');
+    const suggBox = document.getElementById('suggestions');
+    const msgBox = document.getElementById('messages');
+
+    setInterval(() => { 
+        const clockEl = document.getElementById('clock');
+        if(clockEl) clockEl.innerText = new Date().toISOString().replace('T',' ').split('.')[0] + ' UTC'; 
+    }, 1000);
+
+    const appendLocalMsg = (text) => {
+        const d = document.createElement('div');
+        d.className = "local-msg";
+        d.innerHTML = `<strong>[SYSTEM]</strong><br>${text}`;
+        msgBox.appendChild(d);
+        msgBox.scrollTop = msgBox.scrollHeight;
+    };
+
+    const setOnlineStatus = (status) => {
+        const id = myName || "OBS-" + myKey.substring(5,12);
+        db.collection("users").doc(id).set({
+            key: myKey, 
+            online: status, 
+            lastSeen: Date.now(),
+            role: myName === SUPER_OWNER ? "owner" : (status ? userRole : "user"),
+            isObserver: !myName
+        }, {merge: true}).catch(() => {});
+    };
+    
+    window.onbeforeunload = () => { setOnlineStatus(false); };
+    const logout = () => { 
+        setOnlineStatus(false); 
+        localStorage.removeItem('nasa_user'); 
+        localStorage.removeItem('nasa_role');
+        location.reload(); 
+    };
+
+    const fullReset = () => {
+        localStorage.removeItem('nasa_user');
+        localStorage.removeItem('nasa_key');
+        localStorage.removeItem('nasa_role');
+        location.reload();
+    };
+
+    db.collection("settings").doc("chatStatus").onSnapshot(doc => {
+        const isLocked = doc.exists ? doc.data().locked : false;
+        const lockOverlay = document.getElementById('lock-overlay');
+        const canWrite = (myName === SUPER_OWNER || userRole === "owner" || userRole === "mod");
+        chatInput.style.display = (isLocked && !canWrite) ? "none" : "block";
+        lockOverlay.style.display = (isLocked && !canWrite) ? "block" : "none";
+    });
+
+    db.collection("chat").orderBy("ts", "asc").limitToLast(50).onSnapshot(snap => {
+        const currentMsgs = document.querySelectorAll('#messages > div:not(.local-msg)');
+        currentMsgs.forEach(m => m.remove());
+        snap.forEach(doc => {
+            const m = doc.data();
+            if (!m.target || m.target === myName || m.u === myName || userRole !== "user" || myName === SUPER_OWNER) {
+                const d = document.createElement('div');
+                d.style.marginBottom = "8px";
+                const date = m.ts ? m.ts.toDate() : new Date();
+                let icon = (m.u === SUPER_OWNER || m.role === "owner") ? "👑 " : (m.role === "mod" ? "🛡️ " : "👤 ");
+                let color = (m.u === SUPER_OWNER || m.role === "owner") ? "var(--owner)" : (m.role === "mod" ? "var(--mod)" : "var(--accent)");
+                d.innerHTML = `<span style="font-size: 9px; color: #666;">[${date.toLocaleTimeString()}]</span> ${m.target ? `<span style="color:var(--private)">(MSG) </span>` : ""}${icon}<strong style="color:${color}">${m.u}:</strong> <span>${m.t}</span>`;
+                if (userRole !== "user" && (myName === SUPER_OWNER || m.u !== SUPER_OWNER)) {
+                    const del = document.createElement('span'); del.innerText = " 🗑️"; del.style.cursor="pointer";
+                    del.onclick = () => db.collection("chat").doc(doc.id).delete();
+                    d.appendChild(del);
+                }
+                msgBox.appendChild(d);
+            }
+        });
+        msgBox.scrollTop = msgBox.scrollHeight;
+    });
+
+    db.collection("users").onSnapshot(snap => {
+        let chatCount = 0, obsCount = 0, totalOnline = 0;
+        onlineUsersList = [];
+        snap.forEach(doc => {
+            const u = doc.data();
+            if (u.online) {
+                totalOnline++;
+                if (doc.id.startsWith("OBS-")) obsCount++; else chatCount++;
+            }
+            onlineUsersList.push({ name: doc.id, key: u.key, online: u.online });
+        });
+        document.getElementById('stat-total').innerText = totalOnline;
+        document.getElementById('stat-chat').innerText = chatCount;
+        document.getElementById('stat-obs').innerText = obsCount;
+    });
+
+    document.getElementById('save-name-btn').onclick = async () => {
+        const val = document.getElementById('name-input-field').value.trim();
+        if(!val) return;
+        const doc = await db.collection("users").doc(val).get();
+        if(doc.exists && doc.data().key !== myKey) {
+            document.getElementById('login-main').style.display = "none";
+            document.getElementById('login-auth').style.display = "block";
+            window.tempName = val;
+        } else { await loginFinal(val, myKey); }
+    };
+
+    document.getElementById('verify-key-btn').onclick = async () => {
+        const enteredKey = document.getElementById('key-input-field').value.trim();
+        const doc = await db.collection("users").doc(window.tempName).get();
+        if(doc.exists && doc.data().key === enteredKey) {
+            localStorage.setItem('nasa_key', enteredKey);
+            myKey = enteredKey;
+            await loginFinal(window.tempName, enteredKey);
+        } else { alert("FALSCHER KEY!"); }
+    };
+
+    async function loginFinal(name, key) {
+        await db.collection("users").doc("OBS-" + myKey.substring(5,12)).delete();
+        myName = name;
+        localStorage.setItem('nasa_user', name);
+        let role = name === SUPER_OWNER ? "owner" : "user";
+        localStorage.setItem('nasa_role', role);
+        await db.collection("users").doc(name).set({key: key, online: true, role: role, lastSeen: Date.now()}, {merge: true});
+        location.reload();
+    }
+
+    chatInput.addEventListener('input', () => {
+        const val = chatInput.value.toLowerCase();
+        suggBox.innerHTML = "";
+        if (val.startsWith("/")) {
+            let cmds = [
+                { c: "/login ", d: "Admin Auth (Passwort)", min: "user" },
+                { c: "/mykey", d: "Eigener Key (Lokal)", min: "user" },
+                { c: "/msg ", d: "Privatnachricht (Name Text)", min: "user" },
+                { c: "/logout", d: "Sitzung beenden", min: "user" },
+                { c: "/clearlocal", d: "Eigene Ansicht leeren", min: "user" },
+                { c: "/seen", d: "User-Logs einsehen", min: "mod" },
+                { c: "/clear", d: "Globaler Chat-Wipe", min: "mod" },
+                { c: "/kick ", d: "User kicken", min: "mod" },
+                { c: "/status", d: "Systemstatus prüfen", min: "mod" },
+                { c: "/kickall", d: "Server-Leerung", min: "owner" },
+                { c: "/lock", d: "Chat sperren", min: "owner" },
+                { c: "/unlock", d: "Chat entsperren", min: "owner" },
+                { c: "/ban ", d: "Hardware Ban", min: "owner" },
+                { c: "/unban ", d: "Ban aufheben (Jan)", min: "super" },
+                { c: "/setrole ", d: "Rolle vergeben (Jan)", min: "super" },
+                { c: "/reset ", d: "User löschen (Jan)", min: "super" },
+                { c: "/resetall", d: "Full DB Wipe (Jan)", min: "super" }
+            ].filter(x => {
+                if (!x.c.startsWith(val)) return false;
+                if (myName === SUPER_OWNER) return true; 
+                if (userRole === "owner") return x.min !== "super";
+                if (userRole === "mod") return x.min === "mod" || x.min === "user";
+                return x.min === "user";
+            });
+
+            cmds.forEach(x => {
+                const div = document.createElement('div'); div.className = "sugg-item";
+                div.innerHTML = `<b>${x.c}</b> ${x.d}`;
+                div.onclick = () => { chatInput.value = x.c; suggBox.style.display="none"; chatInput.focus(); };
+                suggBox.appendChild(div);
+            });
+            suggBox.style.display = cmds.length ? "block" : "none";
+        } else suggBox.style.display = "none";
+    });
+
+    chatInput.onkeypress = async (e) => {
+        if (e.key === 'Enter' && chatInput.value.trim() !== "") {
+            const val = chatInput.value.trim();
+            const args = val.split(" ");
+            const cmd = args[0].toLowerCase(), target = args[1], extra = args[2];
+
+            if (val.startsWith("/")) {
+                chatInput.value = ""; suggBox.style.display = "none";
+                const isAdmin = (userRole !== "user" || myName === SUPER_OWNER);
+
+                if (cmd === "/mykey") return appendLocalMsg("DEIN PRIVATER KEY: " + myKey);
+                if (cmd === "/clearlocal") { msgBox.innerHTML = ""; return; }
+                
+                if (cmd === "/msg" && target) {
+                    const txt = args.slice(2).join(" ");
+                    if (!txt) return;
+                    await db.collection("chat").add({ u: myName, target: target, t: txt, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
+                    return;
+                }
+
+                if (cmd === "/login") {
+                    const h = md5(target);
+                    if (h === PW_OWNER) await db.collection("users").doc(myName).update({role: "owner"}); 
+                    else if (h === PW_MOD) await db.collection("users").doc(myName).update({role: "mod"}); 
+                    return;
+                }
+
+                if (isAdmin) {
+                    if (cmd === "/seen") {
+                        let out = "LOGS:<br>";
+                        onlineUsersList.forEach(u => { out += `${u.online?'[ON]':'[OFF]'} ${u.name} : ${u.key}<br>`; });
+                        return appendLocalMsg(out);
+                    }
+                    if (cmd === "/clear") { 
+                        const s = await db.collection("chat").get(); const b = db.batch(); 
+                        s.forEach(d => b.delete(d.ref)); return b.commit(); 
+                    }
+                    if (cmd === "/lock") return db.collection("settings").doc("chatStatus").set({locked: true});
+                    if (cmd === "/unlock") return db.collection("settings").doc("chatStatus").set({locked: false});
+                    
+                    if (cmd === "/kickall" && (userRole === "owner" || myName === SUPER_OWNER)) {
+                        const s = await db.collection("users").get();
+                        const b = db.batch();
+                        const now = Date.now();
+                        s.forEach(doc => {
+                            if (doc.id !== myName && doc.id !== SUPER_OWNER) {
+                                b.update(doc.ref, { lastKick: now, online: false });
+                            }
+                        });
+                        await b.commit();
+                        appendLocalMsg("KICKALL: Alle User wurden entfernt.");
+                        return;
+                    }
+
+                    if (target && target !== SUPER_OWNER) {
+                        if (cmd === "/kick") return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
+                        if (cmd === "/ban" && (userRole === "owner" || myName === SUPER_OWNER)) {
+                            const tDoc = await db.collection("users").doc(target).get();
+                            if (tDoc.exists) {
+                                await db.collection("bannedKeys").doc(tDoc.data().key).set({ts: Date.now(), user: target});
+                                await db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
+                            }
+                            return;
+                        }
+                        if (cmd === "/unban" && myName === SUPER_OWNER) {
+                            const tDoc = await db.collection("users").doc(target).get();
+                            if (tDoc.exists) await db.collection("bannedKeys").doc(tDoc.data().key).delete();
+                            return;
+                        }
+                        if (myName === SUPER_OWNER) {
+                            if (cmd === "/reset") { await db.collection("users").doc(target).delete(); return; }
+                            if (cmd === "/setrole") { await db.collection("users").doc(target).update({ role: extra }); return; }
+                        }
+                    }
+                    if (cmd === "/resetall" && myName === SUPER_OWNER) {
+                        const s = await db.collection("users").get();
+                        const b = db.batch();
+                        s.forEach(d => { if(d.id !== SUPER_OWNER) b.delete(d.ref); });
+                        await b.commit();
+                        setTimeout(() => fullReset(), 500);
+                        return;
+                    }
+                }
+                if (cmd === "/logout") logout();
+                return;
+            }
+            await db.collection("chat").add({ u: myName, t: val, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
+            chatInput.value = "";
+        }
+    };
+
+    async function init() {
+        if (!myName) {
+            document.getElementById('name-overlay').style.display = "flex";
+        } else {
+            const dayInMs = 86400000;
+            const userDoc = await db.collection("users").doc(myName).get();
+            
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                const lastActivity = userData.lastSeen || 0;
+                if (Date.now() - lastActivity > dayInMs) {
+                    logout(); 
+                    return;
+                }
+            }
+
+            document.getElementById('display-name-label').innerText = myName;
+            document.getElementById('role-display').innerText = userRole.toUpperCase();
+            setOnlineStatus(true);
+            setInterval(() => setOnlineStatus(true), 300000);
+
+            db.collection("users").doc(myName).onSnapshot(doc => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    if (data.lastKick && data.lastKick > loginTime) logout();
+                    userRole = (myName === SUPER_OWNER) ? "owner" : (data.role || "user");
+                    localStorage.setItem('nasa_role', userRole);
+                    document.getElementById('role-display').innerText = userRole.toUpperCase();
+                    document.getElementById('role-display').style.color = (userRole === "owner") ? "var(--owner)" : (userRole === "mod" ? "var(--mod)" : "#00ff00");
+                }
+            });
+
+            db.collection("bannedKeys").doc(myKey).onSnapshot(doc => {
+                if (doc.exists) { alert("GEBANNT!"); logout(); }
+            });
+        }
+    }
+    init();
+</script>
+</body>
+</html>
