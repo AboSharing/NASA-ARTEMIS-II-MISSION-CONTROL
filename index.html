@@ -137,13 +137,19 @@
         msgBox.scrollTop = msgBox.scrollHeight;
     };
 
+    const updateRoleUI = (role) => {
+        const rd = document.getElementById('role-display');
+        rd.innerText = role.toUpperCase();
+        rd.style.color = (role === "owner" || myName === SUPER_OWNER) ? "var(--owner)" : (role === "mod" ? "var(--mod)" : "#00ff00");
+    };
+
     const setOnlineStatus = (status) => {
         const id = myName || "OBS-" + myKey.substring(5,12);
         db.collection("users").doc(id).set({
             key: myKey, 
             online: status, 
             lastSeen: Date.now(),
-            role: myName === SUPER_OWNER ? "owner" : userRole,
+            role: (myName === SUPER_OWNER) ? "owner" : userRole,
             isObserver: !myName
         }, {merge: true}).catch(() => {});
     };
@@ -157,12 +163,11 @@
     };
 
     const fullReset = () => {
-        localStorage.removeItem('nasa_user');
-        localStorage.removeItem('nasa_key');
-        localStorage.removeItem('nasa_role');
+        localStorage.clear();
         location.reload();
     };
 
+    // Chat-Status Sperre
     db.collection("settings").doc("chatStatus").onSnapshot(doc => {
         const isLocked = doc.exists ? doc.data().locked : false;
         const lockOverlay = document.getElementById('lock-overlay');
@@ -171,6 +176,7 @@
         lockOverlay.style.display = (isLocked && !canWrite) ? "block" : "none";
     });
 
+    // Chat Nachrichten Listener
     db.collection("chat").orderBy("ts", "asc").limitToLast(50).onSnapshot(snap => {
         const currentMsgs = document.querySelectorAll('#messages > div:not(.local-msg)');
         currentMsgs.forEach(m => m.remove());
@@ -194,6 +200,7 @@
         msgBox.scrollTop = msgBox.scrollHeight;
     });
 
+    // Online Stats
     db.collection("users").onSnapshot(snap => {
         let chatCount = 0, obsCount = 0, totalOnline = 0;
         onlineUsersList = [];
@@ -241,6 +248,7 @@
         location.reload();
     }
 
+    // Suggestions Logik
     chatInput.addEventListener('input', () => {
         const val = chatInput.value.toLowerCase();
         suggBox.innerHTML = "";
@@ -303,13 +311,16 @@
 
                 if (cmd === "/login") {
                     const h = md5(target);
-                    if (h === PW_OWNER) {
-                        await db.collection("users").doc(myName).update({role: "owner"});
-                        userRole = "owner"; localStorage.setItem('nasa_role', "owner");
-                    } 
-                    else if (h === PW_MOD) {
-                        await db.collection("users").doc(myName).update({role: "mod"});
-                        userRole = "mod"; localStorage.setItem('nasa_role', "mod");
+                    let newRole = "user";
+                    if (h === PW_OWNER) newRole = "owner";
+                    else if (h === PW_MOD) newRole = "mod";
+                    
+                    if (newRole !== "user") {
+                        userRole = newRole;
+                        localStorage.setItem('nasa_role', newRole);
+                        await db.collection("users").doc(myName).update({role: newRole});
+                        updateRoleUI(newRole);
+                        appendLocalMsg("Auth erfolgreich: " + newRole.toUpperCase());
                     }
                     return;
                 }
@@ -331,14 +342,9 @@
                         const s = await db.collection("users").get();
                         const b = db.batch();
                         const now = Date.now();
-                        s.forEach(doc => {
-                            if (doc.id !== myName && doc.id !== SUPER_OWNER) {
-                                b.update(doc.ref, { lastKick: now, online: false });
-                            }
-                        });
+                        s.forEach(doc => { if (doc.id !== myName && doc.id !== SUPER_OWNER) b.update(doc.ref, { lastKick: now, online: false }); });
                         await b.commit();
-                        appendLocalMsg("KICKALL: Alle User wurden entfernt.");
-                        return;
+                        return appendLocalMsg("KICKALL ausgeführt.");
                     }
 
                     if (target && target !== SUPER_OWNER) {
@@ -352,22 +358,14 @@
                             return;
                         }
                         if (cmd === "/unban" && myName === SUPER_OWNER) {
-                            const tDoc = await db.collection("users").doc(target).get();
-                            if (tDoc.exists) await db.collection("bannedKeys").doc(tDoc.data().key).delete();
+                            const s = await db.collection("bannedKeys").where("user", "==", target).get();
+                            s.forEach(d => d.ref.delete());
                             return;
                         }
                         if (myName === SUPER_OWNER) {
                             if (cmd === "/reset") { await db.collection("users").doc(target).delete(); return; }
                             if (cmd === "/setrole") { await db.collection("users").doc(target).update({ role: extra }); return; }
                         }
-                    }
-                    if (cmd === "/resetall" && myName === SUPER_OWNER) {
-                        const s = await db.collection("users").get();
-                        const b = db.batch();
-                        s.forEach(d => { if(d.id !== SUPER_OWNER) b.delete(d.ref); });
-                        await b.commit();
-                        setTimeout(() => fullReset(), 500);
-                        return;
                     }
                 }
                 if (cmd === "/logout") logout();
@@ -383,40 +381,34 @@
             document.getElementById('name-overlay').style.display = "flex";
         } else {
             const dayInMs = 86400000;
-            const userDoc = await db.collection("users").doc(myName).get();
+            const userRef = db.collection("users").doc(myName);
+            const userDoc = await userRef.get();
             
             if (userDoc.exists) {
                 const userData = userDoc.data();
-                
-                // 24 Stunden Check für Autologout
-                const lastActivity = userData.lastSeen || 0;
-                if (Date.now() - lastActivity > dayInMs) {
-                    logout(); 
-                    return;
-                }
+                if (Date.now() - (userData.lastSeen || 0) > dayInMs) { logout(); return; }
 
-                // Rolle beim Laden aus DB ziehen
+                // Rollen-Sync beim Laden
                 userRole = (myName === SUPER_OWNER) ? "owner" : (userData.role || "user");
                 localStorage.setItem('nasa_role', userRole);
             }
 
             document.getElementById('display-name-label').innerText = myName;
-            document.getElementById('role-display').innerText = userRole.toUpperCase();
-            document.getElementById('role-display').style.color = (userRole === "owner") ? "var(--owner)" : (userRole === "mod" ? "var(--mod)" : "#00ff00");
-
+            updateRoleUI(userRole);
             setOnlineStatus(true);
             setInterval(() => setOnlineStatus(true), 300000);
 
-            db.collection("users").doc(myName).onSnapshot(doc => {
+            // Echtzeit-Überwachung deiner eigenen Daten (Rolle, Kick)
+            userRef.onSnapshot(doc => {
                 if (doc.exists) {
                     const data = doc.data();
                     if (data.lastKick && data.lastKick > loginTime) logout();
                     
-                    // Rolle live aktualisieren, falls sie geändert wurde
-                    userRole = (myName === SUPER_OWNER) ? "owner" : (data.role || "user");
-                    localStorage.setItem('nasa_role', userRole);
-                    document.getElementById('role-display').innerText = userRole.toUpperCase();
-                    document.getElementById('role-display').style.color = (userRole === "owner") ? "var(--owner)" : (userRole === "mod" ? "var(--mod)" : "#00ff00");
+                    if (data.role && data.role !== userRole) {
+                        userRole = data.role;
+                        localStorage.setItem('nasa_role', userRole);
+                        updateRoleUI(userRole);
+                    }
                 }
             });
 
