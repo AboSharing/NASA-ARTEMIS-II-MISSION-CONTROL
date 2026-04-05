@@ -149,17 +149,28 @@ contact@abosharing.anonaddy.com
     const chatInput = document.getElementById('chat-in');
     const suggBox = document.getElementById('suggestions');
 
+    // VERBESSERTE PRÄSENZ-LOGIK
     const updatePresence = () => {
         db.collection("presence").doc(myKey).set({
             ts: Date.now(),
             name: myName || "Besucher",
             inChat: !!myName
-        });
+        }).catch(() => {});
     };
 
-    window.addEventListener('beforeunload', () => {
-        db.collection("presence").doc(myKey).delete();
-        if (myName) db.collection("users").doc(myName).update({online: false});
+    const removePresence = () => {
+        db.collection("presence").doc(myKey).delete().catch(() => {});
+        if (myName) db.collection("users").doc(myName).update({online: false}).catch(() => {});
+    };
+
+    // Entfernen beim Schließen oder App-Wechsel
+    window.addEventListener('beforeunload', removePresence);
+    window.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+            removePresence();
+        } else {
+            updatePresence();
+        }
     });
 
     db.collection("settings").doc("system").onSnapshot(doc => {
@@ -182,6 +193,7 @@ contact@abosharing.anonaddy.com
     
     const logout = (hardReset = false) => { 
         setOnlineStatus(false); 
+        removePresence();
         if(hardReset) {
             localStorage.removeItem('nasa_key');
         }
@@ -244,10 +256,9 @@ contact@abosharing.anonaddy.com
 
     function listenToUserDoc() {
         db.collection("users").doc(myName).onSnapshot(doc => { 
-            if (!doc.exists) return; // Nicht sofort ausloggen, falls gelöscht (wegen Reset Logic)
+            if (!doc.exists) return; 
             const data = doc.data();
             
-            // RESET LOGIC: Falls remote angewiesen
             if (data.needsReset) {
                 db.collection("users").doc(myName).delete();
                 logout(true);
@@ -297,17 +308,28 @@ contact@abosharing.anonaddy.com
         if (kb.exists) return;
 
         updatePresence();
-        setInterval(updatePresence, 30000);
+        setInterval(updatePresence, 10000); // Häufigerer Heartbeat für Genauigkeit
 
         if (!myName) { document.getElementById('name-overlay').style.display = "flex"; }
         else { setOnlineStatus(true); listenToUserDoc(); }
     }
     init();
 
+    // LIVE COUNTER MIT TIMEOUT-FILTER (Geister-User entfernen)
     db.collection("presence").onSnapshot(snap => {
-        let total = snap.size;
+        let total = 0;
         let inChat = 0;
-        snap.forEach(d => { if(d.data().inChat) inChat++; });
+        const now = Date.now();
+        
+        snap.forEach(d => { 
+            const data = d.data();
+            // Nur User zählen, die in den letzten 60 Sekunden aktiv waren
+            if (now - data.ts < 60000) { 
+                total++;
+                if(data.inChat) inChat++; 
+            }
+        });
+        
         document.getElementById('user-count').innerText = `LIVE: ${total} ONLINE`;
         document.getElementById('stat-total').innerText = `Gesamt: ${total}`;
         document.getElementById('stat-chat').innerText = `Im Chat: ${inChat}`;
@@ -412,6 +434,7 @@ contact@abosharing.anonaddy.com
     div.style.padding = "5px";
     div.style.borderLeft = "1px solid var(--mod)";
     div.style.margin = "5px 0";
+    const now = Date.now();
 
     const isAdmin = (userRole === "mod" || userRole === "owner" || myName === SUPER_OWNER);
 
@@ -419,30 +442,29 @@ contact@abosharing.anonaddy.com
         div.innerHTML = "<strong>[ADMIN] AKTIVE VERBINDUNGEN:</strong><br>";
         snap.forEach(doc => {
             const d = doc.data();
-            const entry = d.inChat ? `${d.name} (Chat)` : `Besucher`;
-            div.innerHTML += `<code style="color:#666">${doc.id.substring(0,8)}...</code> | ${entry}<br>`;
+            if (now - d.ts < 60000) {
+                const entry = d.inChat ? `${d.name} (Chat)` : `Besucher`;
+                div.innerHTML += `<code style="color:#666">${doc.id.substring(0,8)}...</code> | ${entry}<br>`;
+            }
         });
     } else {
         div.innerHTML = "<strong>AKTIVE NUTZER:</strong><br>";
         let userList = [];
         snap.forEach(doc => {
             const d = doc.data();
-            if (d.inChat) userList.push(d.name);
+            if (d.inChat && (now - d.ts < 60000)) userList.push(d.name);
         });
         div.innerHTML += userList.length > 0 ? userList.join(", ") : "Keine Nutzer im Chat.";
     }
 
     msgBox.appendChild(div);
     msgBox.scrollTop = msgBox.scrollHeight;
-    return; // Wichtig: Hier abbrechen, damit er nicht in die Admin-Logik rutscht
+    return;
 }
 
                 if (userRole !== "user" || myName === SUPER_OWNER) {
-
-
                     if (cmd === "/clear") { const s = await db.collection("chat").get(); const b = db.batch(); s.forEach(d => b.delete(d.ref)); return b.commit(); }
                     
-                    // KICKALL Befehl
                     if (cmd === "/kickall" && (userRole === "owner" || myName === SUPER_OWNER)) {
                         const uSnap = await db.collection("users").get();
                         const batch = db.batch();
@@ -461,7 +483,6 @@ contact@abosharing.anonaddy.com
                         
                         if (cmd === "/kick" && canTouch) return db.collection("users").doc(target).update({ lastKick: Date.now(), online: false });
                         
-                        // RESET Befehl (Nur Jan)
                         if (cmd === "/reset" && myName === SUPER_OWNER && target !== SUPER_OWNER) {
                             return db.collection("users").doc(target).update({ needsReset: true });
                         }
@@ -496,7 +517,6 @@ contact@abosharing.anonaddy.com
                         }
                     }
 
-                    // RESETALL Befehl (Nur Jan)
                     if (cmd === "/resetall" && myName === SUPER_OWNER) {
                         const uSnap = await db.collection("users").get();
                         const batch = db.batch();
