@@ -153,6 +153,12 @@ function updateCountdown() {
   }
 }
 
+// 👉 jede Sekunde aktualisieren
+setInterval(updateCountdown, 1000);
+
+// 👉 sofort einmal starten (wichtig!)
+updateCountdown();
+
 // sofort + jede Minute aktualisieren
 updateCountdown();
 setInterval(updateCountdown, 60000);
