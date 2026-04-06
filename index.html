@@ -95,8 +95,7 @@
     <div class="video-grid" id="main-grid">
         <div class="video-card"><div class="label">Artemis II Live</div><iframe src="https://www.youtube.com/embed/m3kR2KK8TEs?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
         <div class="video-card"><div class="label">Orion Views</div><iframe src="https://www.youtube.com/embed/6RwfNBtepa4?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
-        <div class="video-card">
-  <div class="label" id="countdown"></div><iframe src="https://www.youtube.com/embed/z-j1uxBmis0?si=s70xEGvdZAnyI44P?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
+        <div class="video-card"><div class="label">Around the Moon</div><iframe src="https://www.youtube.com/embed/z-j1uxBmis0?si=s70xEGvdZAnyI44P?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
         <div class="video-card"><div class="label">ISS Interior</div><iframe src="https://www.youtube.com/embed/sWasdbDVNvc?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
     </div>
     <div class="chat-container" id="chat-box">
@@ -136,42 +135,6 @@ contact@abosharing.anonaddy.com
 </footer>
 
 <script>
-function updateCountdown() {
-  const now = new Date();
-
-  // Ziel: heute 19:00 Uhr
-  let target = new Date();
-  target.setHours(19, 0, 0, 0);
-
-  // Falls es schon nach 19 Uhr ist → nächster Tag
-  if (now > target) {
-    target.setDate(target.getDate() + 1);
-  }
-
-  const diff = target - now;
-
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor(diff / (1000 * 60));
-
-  const el = document.getElementById("countdown");
-
-  if (diff <= 0) {
-    el.innerText = "LIVE NOW | EN VIVO AHORA";
-  } 
-  else if (hours <= 2) {
-    el.innerText = `Around the Moon | Live in ${minutes} minutes - Alrededor de la Luna | En vivo en ${minutes} minutos`;
-  } 
-  else {
-    el.innerText = `Around the Moon | Live in ${hours} hours - Alrededor de la Luna | En vivo en ${hours} horas`;
-  }
-}
-
-// 👉 jede Sekunde aktualisieren
-setInterval(updateCountdown, 1000);
-
-// 👉 sofort einmal starten (wichtig!)
-updateCountdown();
-
 // sofort + jede Minute aktualisieren
 updateCountdown();
 setInterval(updateCountdown, 60000);
