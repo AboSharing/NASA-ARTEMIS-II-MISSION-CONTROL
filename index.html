@@ -128,11 +128,11 @@ function updateCountdown() {
 
   // Ziel: heute 19:00 Uhr
   let target = new Date();
-  target.setHours(19, 0, 0, 0);
+  target.setHours(20, 0, 0, 0);
 
   // Falls es schon nach 19 Uhr ist → nächster Tag
   if (now > target) {
-    target.setDate(target.getDate() + 0);
+    target.setDate(target.getDate() + 1);
   }
 
   const diff = target - now;
