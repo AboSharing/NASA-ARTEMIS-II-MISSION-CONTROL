@@ -19,7 +19,11 @@
         .video-card iframe { position: absolute; width: 100%; height: 100%; border: none; }
         .label { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 2px 8px; font-size: 11px; z-index: 5; border-left: 2px solid var(--accent); color: #fff; font-weight: bold; text-transform: uppercase; }
         
-        .chat-container { width: 350px; background: #0a0c10; border-left: 1px solid #1a1e26; display: flex; flex-direction: column; position: relative; z-index: 1050; }
+        .chat-container { width: 350px; background: #0a0c10; border-left: 1px solid #1a1e26; display: flex; flex-direction: column; position: relative; z-index: 1050; transition: transform 0.3s ease, width 0.3s ease; }
+        
+        /* NEU: Klasse zum Ausblenden */
+        .chat-hidden { width: 0; display: none; }
+
         #messages { flex: 1; overflow-y: auto; padding: 15px; font-size: 0.85rem; scroll-behavior: smooth; }
         
         .user-stats-container { position: relative; cursor: pointer; user-select: none; }
@@ -52,12 +56,19 @@
         #name-overlay { position: absolute; inset: 0; background: rgba(2, 4, 6, 0.98); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
         .name-box { background: #0d1117; padding: 30px; border: 1px solid var(--accent); border-radius: 12px; text-align: center; width: 100%; max-width: 320px; }
         .btn-action { width: 100%; margin-top: 15px; padding: 10px; background: var(--accent); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        
+        /* NEU: Toggle Button Style */
+        .btn-toggle-chat { background: transparent; border: 1px solid var(--accent); color: var(--accent); padding: 4px 8px; font-size: 10px; cursor: pointer; border-radius: 4px; text-transform: uppercase; font-weight: bold; }
+        .btn-toggle-chat:hover { background: var(--accent); color: white; }
+
         footer { background: #000; font-size: 10px; color: #444; padding: 5px; text-align: center; border-top: 1px solid #111; flex-shrink: 0; }
 
         @media (max-width: 768px) {
             .layout { flex-direction: column; }
             .chat-container { width: 100%; height: 45%; border-left: none; border-top: 1px solid #1a1e26; }
+            .chat-hidden { height: 0; display: none; }
             .video-grid { height: 55%; }
+            .video-grid.full { height: 100%; }
         }
     </style>
 </head>
@@ -66,6 +77,8 @@
 <header>
     <div style="font-size: 0.8rem; letter-spacing: 1px;">NASA ARTEMIS II // MISSION CONTROL</div>
     <div style="display: flex; gap: 20px; align-items: center;">
+        <button class="btn-toggle-chat" onclick="toggleChat()">Chat ON/OFF</button>
+
         <div class="user-stats-container" onclick="document.getElementById('user-dropdown').classList.toggle('active')">
             <div id="user-count" style="font-size: 0.8rem; color: #00ff00;">LIVE: 0 ONLINE</div>
             <div id="user-dropdown">
@@ -79,14 +92,14 @@
 </header>
 
 <div class="layout">
-    <div class="video-grid">
+    <div class="video-grid" id="main-grid">
         <div class="video-card"><div class="label">Artemis II Live</div><iframe src="https://www.youtube.com/embed/m3kR2KK8TEs?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
         <div class="video-card"><div class="label">Orion Views</div><iframe src="https://www.youtube.com/embed/6RwfNBtepa4?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
         <div class="video-card">
   <div class="label" id="countdown"></div><iframe src="https://www.youtube.com/embed/z-j1uxBmis0?si=s70xEGvdZAnyI44P?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
         <div class="video-card"><div class="label">ISS Interior</div><iframe src="https://www.youtube.com/embed/sWasdbDVNvc?autoplay=1&mute=1&controls=1&rel=0" allowfullscreen></iframe></div>
     </div>
-    <div class="chat-container">
+    <div class="chat-container" id="chat-box">
         <div id="name-overlay">
             <div class="name-box" id="login-main">
                 <h3>CHAT LOGIN</h3>
@@ -584,6 +597,16 @@ setInterval(updateCountdown, 60000);
             db.collection("chat").add({ u: myName, t: val, role: userRole, ts: firebase.firestore.FieldValue.serverTimestamp() });
         }
     };
+
+    // NEU: TOGGLE FUNKTION
+    function toggleChat() {
+        const chat = document.getElementById('chat-box');
+        const grid = document.getElementById('main-grid');
+        chat.classList.toggle('chat-hidden');
+        if(window.innerWidth <= 768) {
+            grid.classList.toggle('full');
+        }
+    }
 </script>
 </body>
 </html>
