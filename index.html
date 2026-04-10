@@ -134,26 +134,7 @@ contact@abosharing.anonaddy.com
 </a>
 </footer>
 
-
-    
-    const firebaseConfig = { 
-        apiKey: "AIzaSyBhIoRjXHXIO7zSBHclKeHDe97QCtNWHbA", 
-        authDomain: "nasa-live-mission-control-chat.firebaseapp.com", 
-        projectId: "nasa-live-mission-control-chat", 
-        storageBucket: "nasa-live-mission-control-chat.firebasestorage.app", 
-        messagingSenderId: "931959651412", 
-        appId: "1:931959651412:web:7cb207597b2f0e490701c1" 
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-
-    const PW_OWNER = "15aedddb1774cc24f2e5096e4ebc25be"; 
-    const PW_MOD = "5b085b11f4918e370b78adbca67bdfb7";
-    const SUPER_OWNER = "Jan"; 
-
-    if (!localStorage.getItem('nasa_key')) {
-        const genKey = "NASA-" + Math.random().toString(36).substring(2, 10).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
-        localStorage.setItem('n<script>
+<script>
 
 function updateCountdown() {
   const now = new Date();
@@ -192,7 +173,27 @@ function updateCountdown() {
 setInterval(updateCountdown, 1000);
 updateCountdown();
 
-        </script>asa_key', genKey);
+</script>
+    
+    const firebaseConfig = { 
+        apiKey: "AIzaSyBhIoRjXHXIO7zSBHclKeHDe97QCtNWHbA", 
+        authDomain: "nasa-live-mission-control-chat.firebaseapp.com", 
+        projectId: "nasa-live-mission-control-chat", 
+        storageBucket: "nasa-live-mission-control-chat.firebasestorage.app", 
+        messagingSenderId: "931959651412", 
+        appId: "1:931959651412:web:7cb207597b2f0e490701c1" 
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const PW_OWNER = "15aedddb1774cc24f2e5096e4ebc25be"; 
+    const PW_MOD = "5b085b11f4918e370b78adbca67bdfb7";
+    const SUPER_OWNER = "Jan"; 
+
+    if (!localStorage.getItem('nasa_key')) {
+        const genKey = "NASA-" + Math.random().toString(36).substring(2, 10).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
+        localStorage.setItem('nasa_key', genKey);
+
     }
     const myKey = localStorage.getItem('nasa_key');
     let myName = localStorage.getItem('nasa_user') || "";
