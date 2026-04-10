@@ -134,48 +134,7 @@ contact@abosharing.anonaddy.com
 </a>
 </footer>
 
-<script>
 
-function updateCountdown() {
-  const now = new Date();
-
-  // Ziel: 11. April 00:30
-  let target = new Date(now.getFullYear(), 3, 11, 1, 30, 0); 
-  // Monat 3 = April (0 = Januar)
-
-  // Falls schon vorbei → nächstes Jahr
-  if (now > target) {
-    target.setFullYear(target.getFullYear() + 1);
-  }
-
-  const diff = target - now;
-
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  const minutes = Math.floor(diff / (1000 * 60));
-  const seconds = Math.floor(diff / 1000);
-
-  const el = document.getElementById("countdown");
-
-  if (diff <= 0) {
-    el.innerText = "Artemis II Crew Comes Home";
-  } 
-  else if (hours <= 1) {
-    const min = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const sec = Math.floor((diff % (1000 * 60)) / 1000);
-
-    el.innerText = `Crew Comes Home | Live in ${min}m ${sec}s - En vivo en ${min}m ${sec}s`;
-  } 
-  else if (hours <= 2) {
-    el.innerText = `Crew Comes Home | Live in ${minutes} minutes - En vivo en ${minutes} minutos`;
-  } 
-  else {
-    el.innerText = `Crew Comes Home | Live in ${hours} hours - En vivo en ${hours} horas`;
-  }
-}
-
-// jede Sekunde aktualisieren
-setInterval(updateCountdown, 1000);
-updateCountdown();
     
     const firebaseConfig = { 
         apiKey: "AIzaSyBhIoRjXHXIO7zSBHclKeHDe97QCtNWHbA", 
@@ -194,7 +153,46 @@ updateCountdown();
 
     if (!localStorage.getItem('nasa_key')) {
         const genKey = "NASA-" + Math.random().toString(36).substring(2, 10).toUpperCase() + "-" + Date.now().toString(36).toUpperCase();
-        localStorage.setItem('nasa_key', genKey);
+        localStorage.setItem('n<script>
+
+function updateCountdown() {
+  const now = new Date();
+
+  // Ziel: 11. April 00:30
+  let target = new Date(now.getFullYear(), 3, 11, 0, 30, 0); 
+
+  // Falls schon vorbei → nächstes Jahr
+  if (now > target) {
+    target.setFullYear(target.getFullYear() + 1);
+  }
+
+  const diff = target - now;
+
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+  const el = document.getElementById("countdown");
+
+  if (diff <= 0) {
+    el.innerText = "Crew is LIVE!";
+  } 
+  else if (hours < 1) {
+    el.innerText = `Crew Comes Home | Live in ${minutes}m ${seconds}s - En vivo en ${minutes}m ${seconds}s`;
+  } 
+  else if (hours < 2) {
+    el.innerText = `Crew Comes Home | Live in ${hours}h ${minutes}m - En vivo en ${hours}h ${minutes}m`;
+  } 
+  else {
+    el.innerText = `Crew Comes Home | Live in ${hours} hours - En vivo en ${hours} horas`;
+  }
+}
+
+// jede Sekunde aktualisieren
+setInterval(updateCountdown, 1000);
+updateCountdown();
+
+        </script>asa_key', genKey);
     }
     const myKey = localStorage.getItem('nasa_key');
     let myName = localStorage.getItem('nasa_user') || "";
